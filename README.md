@@ -1,69 +1,55 @@
 # Miami Science Tracker
 
-Mobile-first web app for Miami Science customers and affiliates: routine tracking, supply, orders, rewards, affiliate dashboard, and community.
-
-**Product constraints:** This app is for self-tracking, logging, ecommerce, and community only. It does not provide medical advice, diagnosis, or treatment recommendations.
+Next.js app for Miami Science customers and affiliates: training logs, supplies (stack), orders, rewards, affiliate tools, and community. **Self-tracking and ecommerce only** — not medical advice.
 
 ## Tech stack
 
-- **Next.js** (App Router), **TypeScript**, **Tailwind CSS**
-- **Supabase** (Auth, PostgreSQL, Storage)
-- Modular architecture, role-based access (customer, affiliate, admin)
+Next.js (App Router), TypeScript, Tailwind, Supabase (Auth, Postgres, Storage). Roles: customer, affiliate, admin.
 
-## Getting started
+## Local setup
 
-1. **Clone and install**
-   ```bash
-   pnpm install
-   ```
+```bash
+git clone https://github.com/oceanwonders42-crypto/MIAMI-SCIENCE-APP.git
+cd MIAMI-SCIENCE-APP
+pnpm install
+```
 
-2. **Supabase**
-   - Create a project at [supabase.com](https://supabase.com).
-   - Run migrations in order: `00001_initial_schema.sql`, `00002_phase4_profile_workouts_supplies.sql`, `00003_phase5_orders_shipments_rewards.sql` (SQL editor or `supabase db push`).
-   - Copy `.env.example` to `.env.local` and set:
-     - `NEXT_PUBLIC_SUPABASE_URL`
-     - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+## Environment
 
-3. **Run**
-   ```bash
-   pnpm dev
-   ```
-   Open [http://localhost:3000](http://localhost:3000). Sign up or log in to reach the dashboard.
+1. Copy **`.env.example`** → **`.env.local`** (never commit `.env.local`; it is gitignored).
+2. Required for a working app: **`NEXT_PUBLIC_SUPABASE_URL`**, **`NEXT_PUBLIC_SUPABASE_ANON_KEY`** (see Supabase → Project Settings → API).
+3. Optional / feature-specific keys (WooCommerce, webhooks, email, image generation, etc.) are documented inline in **`.env.example`**.
 
-## Routes
+Apply database schema from **`supabase/migrations/`** (SQL Editor or Supabase CLI) before first use.
 
-| Route | Access |
-|-------|--------|
-| `/`, `/login`, `/signup`, `/forgot-password` | Public |
-| `/onboarding` | Authenticated |
-| `/dashboard`, `/training`, `/progress`, `/stack`, `/orders`, `/rewards`, `/community`, `/account` | All authenticated |
-| `/affiliate` | Affiliate, Admin |
-| `/admin` | Admin |
+## Run (development)
 
-## Roles
+```bash
+pnpm dev
+```
 
-- **customer** — Dashboard, training, progress, stack, orders, rewards, community, account.
-- **affiliate** — Same + affiliate dashboard (clicks, conversions, commissions, referral link, affiliate chat).
-- **admin** — Full access: user roles, moderation, featured products, reward adjustments, announcements.
+Opens the dev server (default **http://localhost:3000**; another port is used if 3000 is busy). Sign up or log in to reach the dashboard.
 
-Assign roles in the `user_roles` table (e.g. set `role = 'affiliate'` or `'admin'` for a user).
+## Build (production)
 
-## Project structure
+```bash
+pnpm run build
+pnpm start
+```
 
-- `src/app` — App Router pages and layouts (auth, dashboard, admin).
-- `src/components/ui` — Design system (Card, Stats, Badge, Tabs, Section, Disclaimer).
-- `src/components/layout` — AppNav, Sidebar, Header.
-- `src/lib` — Supabase client (browser + server), auth helpers, constants, utils.
-- `src/types` — Shared TypeScript types and database types.
-- `supabase/migrations` — SQL schema and RLS.
+Other scripts: **`pnpm run lint`**, Capacitor **`pnpm run cap:sync`** / **`pnpm run cap:ios`** (see `docs/CAPACITOR_IOS_SETUP.md`).
 
-## Demo data (orders, shipments, rewards)
+## Exercise photos (training)
 
-When live ecommerce integration is not connected, you can seed demo data:
+Bundled **PNG** assets for featured library exercises live under **`public/exercises/`** (e.g. `exercise-{slug}.png` and `exercise-{slug}-women.png`). Resolution order: DB **`image_url`** → optional overrides in **`src/lib/exerciseMedia.ts`** → these files → SVG fallback. Details: **`public/exercises/README.md`**. To refresh from a zip asset pack: **`node scripts/sync-fitness-zip-assets.mjs <path-to-zip>`**.
 
-- **Option A — SQL:** Edit `supabase/seed_demo_phase5.sql`, set `demo_user_id` to your `auth.users.id` (from Supabase Auth or `SELECT id FROM auth.users WHERE email = 'your@email.com'`), then run the script in the Supabase SQL Editor.
-- **Option B — Dev-only button:** In development, set `NEXT_PUBLIC_ALLOW_DEMO_SEED=true` in `.env.local`. The Orders page will show an “Add demo data” button when you have no orders; it inserts one order, one shipment, and sample reward ledger rows for the signed-in user. Do not enable in production.
+## More documentation
+
+- **Demo orders / seed:** `supabase/seed_demo_phase5.sql`, optional `NEXT_PUBLIC_ALLOW_DEMO_SEED` (see below).
+- **Deployment, accounts, iOS:** `docs/` (e.g. `DEPLOYMENT.md`, `TEST_ACCOUNTS_SETUP.md`, `CAPACITOR_IOS_SETUP.md`).
+
+When ecommerce is not connected, you can seed demo orders: edit `supabase/seed_demo_phase5.sql` with your user id, or in dev set `NEXT_PUBLIC_ALLOW_DEMO_SEED=true` for the Orders page “Add demo data” button — **do not enable in production**.
 
 ## Disclaimer
 
-This app is for informational and self-tracking purposes only and does not provide medical advice. Always follow the guidance of your licensed healthcare professional.
+Informational and self-tracking only. Follow your licensed healthcare professional’s guidance.
