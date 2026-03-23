@@ -1,0 +1,59 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Miami Science — dark luxury default */
+:root {
+  --background: #0a0a0b;
+  --foreground: #fafafa;
+  --card: #141416;
+  --muted: #27272a;
+  --primary: #d4a853;
+  --primary-foreground: #0a0a0b;
+  --radius: 0.75rem;
+}
+
+.dark {
+  --background: #0a0a0b;
+  --foreground: #fafafa;
+  --card: #141416;
+  --muted: #27272a;
+  --primary: #d4a853;
+  --primary-foreground: #0a0a0b;
+}
+
+* {
+  box-sizing: border-box;
+  padding: 0;
+  margin: 0;
+}
+
+html,
+body {
+  max-width: 100vw;
+  min-height: 100dvh;
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans), system-ui, sans-serif;
+}
+
+@layer utilities {
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom, 0);
+  }
+}
+
+@keyframes chart-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.chart-reveal {
+  animation: chart-reveal 0.55s ease-out both;
+}

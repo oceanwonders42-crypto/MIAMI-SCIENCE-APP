@@ -1,0 +1,38 @@
+-- Curated exercise library seed. Safe to re-run: existing rows kept by unique name/slug.
+-- Categories: Strength, Cardio, Mobility. Muscle groups: Chest, Back, Legs, Shoulders, Arms, Core.
+
+INSERT INTO exercises (name, slug, category, muscle_group, description) VALUES
+  ('Bench Press', 'bench-press', 'Strength', 'Chest', 'Lie on bench, lower bar to chest, press up.'),
+  ('Incline Bench Press', 'incline-bench-press', 'Strength', 'Chest', NULL),
+  ('Push-Up', 'push-up', 'Strength', 'Chest', NULL),
+  ('Cable Fly', 'cable-fly', 'Strength', 'Chest', NULL),
+  ('Barbell Row', 'barbell-row', 'Strength', 'Back', 'Hinge at hips, pull bar to lower chest.'),
+  ('Pull-Up', 'pull-up', 'Strength', 'Back', NULL),
+  ('Lat Pulldown', 'lat-pulldown', 'Strength', 'Back', NULL),
+  ('Deadlift', 'deadlift', 'Strength', 'Back', 'Hinge at hips, drive through heels to stand with bar.'),
+  ('Romanian Deadlift', 'romanian-deadlift', 'Strength', 'Back', NULL),
+  ('Squat', 'squat', 'Strength', 'Legs', 'Squat down with bar on upper back, stand.'),
+  ('Leg Press', 'leg-press', 'Strength', 'Legs', NULL),
+  ('Lunge', 'lunge', 'Strength', 'Legs', NULL),
+  ('Leg Curl', 'leg-curl', 'Strength', 'Legs', NULL),
+  ('Calf Raise', 'calf-raise', 'Strength', 'Legs', NULL),
+  ('Overhead Press', 'overhead-press', 'Strength', 'Shoulders', 'Press bar or dumbbells overhead.'),
+  ('Lateral Raise', 'lateral-raise', 'Strength', 'Shoulders', NULL),
+  ('Front Raise', 'front-raise', 'Strength', 'Shoulders', NULL),
+  ('Face Pull', 'face-pull', 'Strength', 'Shoulders', NULL),
+  ('Barbell Curl', 'barbell-curl', 'Strength', 'Arms', NULL),
+  ('Hammer Curl', 'hammer-curl', 'Strength', 'Arms', NULL),
+  ('Tricep Pushdown', 'tricep-pushdown', 'Strength', 'Arms', NULL),
+  ('Skull Crusher', 'skull-crusher', 'Strength', 'Arms', NULL),
+  ('Plank', 'plank', 'Strength', 'Core', 'Hold rigid body on forearms and toes.'),
+  ('Crunch', 'crunch', 'Strength', 'Core', NULL),
+  ('Russian Twist', 'russian-twist', 'Strength', 'Core', NULL),
+  ('Hanging Leg Raise', 'hanging-leg-raise', 'Strength', 'Core', NULL),
+  ('Running', 'running', 'Cardio', NULL, NULL),
+  ('Cycling', 'cycling', 'Cardio', NULL, NULL),
+  ('Rowing Machine', 'rowing-machine', 'Cardio', NULL, NULL),
+  ('Jump Rope', 'jump-rope', 'Cardio', NULL, NULL),
+  ('Hip Mobility', 'hip-mobility', 'Mobility', 'Legs', NULL),
+  ('Shoulder Mobility', 'shoulder-mobility', 'Mobility', 'Shoulders', NULL),
+  ('Cat Cow', 'cat-cow', 'Mobility', 'Back', NULL)
+ON CONFLICT (name) DO NOTHING;
