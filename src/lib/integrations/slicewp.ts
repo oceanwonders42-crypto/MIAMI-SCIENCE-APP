@@ -83,12 +83,21 @@ export function isSliceWPSyncEnabled(): boolean {
   );
 }
 
-function basicAuthHeader(): string {
-  const token = Buffer.from(
-    `${SLICEWP_CONSUMER_KEY}:${SLICEWP_CONSUMER_SECRET}`,
-    "utf8"
-  ).toString("base64");
-  return `Basic ${token}`;
+/**
+ * SliceWP REST API add-on validates consumer_key + consumer_secret from query string
+ * or Basic auth. Basic auth is interpreted by WordPress as a WP user on many hosts
+ * (401 invalid_username), so we always pass credentials as query parameters.
+ */
+function appendSliceWPAuthQuery(path: string): string {
+  const ck = SLICEWP_CONSUMER_KEY;
+  const cs = SLICEWP_CONSUMER_SECRET;
+  if (!ck || !cs) return path.startsWith("/") ? path : `/${path}`;
+  const p = path.startsWith("/") ? path : `/${path}`;
+  const q = new URLSearchParams({
+    consumer_key: ck,
+    consumer_secret: cs,
+  }).toString();
+  return p.includes("?") ? `${p}&${q}` : `${p}?${q}`;
 }
 
 async function slicewpFetch(
@@ -97,16 +106,19 @@ async function slicewpFetch(
 ): Promise<Response | null> {
   const base = getApiBase();
   if (!base) return null;
-  const url = `${base}${path.startsWith("/") ? path : `/${path}`}`;
+  const pathWithAuth = appendSliceWPAuthQuery(path);
+  const url = `${base}${pathWithAuth}`;
   try {
+    const headers: Record<string, string> = {
+      Accept: "application/json",
+      ...((init?.headers as Record<string, string> | undefined) ?? {}),
+    };
+    if (init?.body != null && !headers["Content-Type"]) {
+      headers["Content-Type"] = "application/json";
+    }
     return await fetch(url, {
       ...init,
-      headers: {
-        Authorization: basicAuthHeader(),
-        Accept: "application/json",
-        "Content-Type": "application/json",
-        ...init?.headers,
-      },
+      headers,
       cache: "no-store",
     });
   } catch {
