@@ -47,7 +47,10 @@ export default async function CommunityPage({
   const rooms = await getRoomsForUser(supabase, true);
 
   const params = await searchParams;
-  const roomSlug = params.room ?? rooms[0]?.slug ?? "community";
+  /** Match bottom nav “Chat” (/community?room=affiliates): public rooms sort first in DB, so avoid defaulting there. */
+  const preferredDefault =
+    rooms.find((r) => r.slug === AFFILIATE_ROOM_SLUG)?.slug ?? rooms[0]?.slug ?? "community";
+  const roomSlug = params.room?.trim() || preferredDefault;
   const currentRoom =
     rooms.find((r) => r.slug === roomSlug) ?? rooms[0] ?? null;
 

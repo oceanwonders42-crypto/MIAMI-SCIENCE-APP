@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ROUTES, SHOP_REFILL_URL } from "@/lib/constants";
+import { AFFILIATE_ROOM_SLUG } from "@/lib/affiliate-chat";
 import type { Announcement } from "@/types";
 
 type ExploreItem = {
@@ -18,13 +19,18 @@ export function DashboardExploreGrid({
 }) {
   const items: ExploreItem[] = [
     { href: ROUTES.progress, label: "Progress", sub: "Weight & metrics" },
+    { href: ROUTES.calories, label: "Calories", sub: "Meal log & estimates" },
     { href: ROUTES.stack, label: "Stack", sub: "Supplements" },
     { href: ROUTES.catalog, label: "Catalog", sub: "Products" },
     { href: ROUTES.orders, label: "Orders", sub: "History" },
   ];
   if (showAffiliate) {
     items.push(
-      { href: ROUTES.community, label: "Community", sub: "Chat" },
+      {
+        href: `${ROUTES.community}?room=${encodeURIComponent(AFFILIATE_ROOM_SLUG)}`,
+        label: "Community",
+        sub: "Team chat",
+      },
       { href: ROUTES.affiliate, label: "Affiliate", sub: "Dashboard" }
     );
   }
