@@ -107,6 +107,21 @@ export interface ProgressPhoto {
   created_at: string;
 }
 
+/** Meal / calorie log (optional photo in progress-photos bucket). */
+export interface MealLog {
+  id: string;
+  user_id: string;
+  photo_storage_path: string | null;
+  calories: number;
+  protein_g: number | null;
+  carbs_g: number | null;
+  fat_g: number | null;
+  notes: string | null;
+  estimate_source: "manual" | "ai";
+  logged_at: string;
+  created_at: string;
+}
+
 export interface Protocol {
   id: string;
   user_id: string;

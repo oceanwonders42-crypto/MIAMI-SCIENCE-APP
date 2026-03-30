@@ -12,6 +12,7 @@ const MAIN_NAV: { href: string; label: string; roles?: UserRole[] }[] = [
   { href: ROUTES.dashboard, label: "Dashboard" },
   { href: ROUTES.training, label: "Training" },
   { href: ROUTES.progress, label: "Progress" },
+  { href: ROUTES.calories, label: "Calories" },
   { href: ROUTES.stack, label: "Stack" },
   { href: ROUTES.catalog, label: "Catalog" },
   { href: ROUTES.orders, label: "Orders" },
@@ -86,11 +87,11 @@ export function AppNav({
     );
   }
 
-  // Bottom nav: show a subset for mobile (Dashboard, Training, Stack, Orders, Account)
+  // Bottom nav: Home, Training, Calories, Orders (+ Chat for affiliates), Account
   const bottomItems: { href: string; label: string }[] = [
     { href: ROUTES.dashboard, label: "Home" },
     { href: ROUTES.training, label: "Training" },
-    { href: ROUTES.stack, label: "Stack" },
+    { href: ROUTES.calories, label: "Calories" },
     { href: ROUTES.orders, label: "Orders" },
   ];
   if (isAffiliateOrAdmin(role)) {

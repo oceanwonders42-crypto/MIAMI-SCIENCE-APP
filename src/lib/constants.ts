@@ -107,6 +107,7 @@ export const ROUTES = {
   trainingWorkout: (id: string) => `/training/workout/${id}`,
   trainingExercise: (slug: string) => `/training/exercise/${slug}`,
   progress: "/progress",
+  calories: "/calories",
   stack: "/stack",
   orders: "/orders",
   orderShipmentAddToStack: (shipmentId: string) => `/orders/shipment/${shipmentId}/add-to-stack`,
