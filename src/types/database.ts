@@ -264,6 +264,12 @@ export interface AffiliateProfile {
   payout_details: Record<string, unknown> | null;
   /** SliceWP REST affiliate id (string); optional admin-set for faster API match */
   slicewp_affiliate_id: string | null;
+  /** Last successful SliceWP + optional WooCommerce promo reconciliation. */
+  affiliate_external_synced_at: string | null;
+  /** Last sync error (cleared on success). */
+  affiliate_external_sync_error: string | null;
+  /** WooCommerce coupon id after REST verification. */
+  woo_coupon_id: number | null;
   status: "active" | "paused" | "suspended";
   created_at: string;
   updated_at: string;

@@ -18,6 +18,7 @@ import {
   getSquareConfig,
   fetchInvoiceById,
 } from "./square-client";
+import { isSliceWPSyncEnabled, checkSliceWPConnectivity } from "./slicewp";
 
 export type IntegrationStatus = {
   name: string;
@@ -56,12 +57,22 @@ export function getSquareStatus(): IntegrationStatus {
   };
 }
 
+export function getSliceWPStatus(): IntegrationStatus {
+  const configured = isSliceWPSyncEnabled();
+  return {
+    name: "SliceWP",
+    configured,
+    callable: false,
+  };
+}
+
 /**
  * All integration statuses (no live call).
  */
 export function getAllIntegrationStatuses(): IntegrationStatus[] {
   return [
     getWooCommerceStatus(),
+    getSliceWPStatus(),
     getShipStationStatus(),
     getSquareStatus(),
   ];
@@ -100,11 +111,16 @@ export async function checkSquareCallable(): Promise<{ callable: boolean; error?
  * Get all statuses with callable checks run (for admin diagnostics page).
  */
 export async function getIntegrationStatusesWithCallable(): Promise<IntegrationStatus[]> {
-  const [woo, ship, square] = await Promise.all([
+  const [woo, slice, ship, square] = await Promise.all([
     (async () => {
       const s = getWooCommerceStatus();
       const c = await checkWooCommerceCallable();
       return { ...s, callable: c.callable, callableError: c.error };
+    })(),
+    (async () => {
+      const s = getSliceWPStatus();
+      const c = await checkSliceWPConnectivity();
+      return { ...s, callable: c.ok, callableError: c.error };
     })(),
     (async () => {
       const s = getShipStationStatus();
@@ -117,5 +133,5 @@ export async function getIntegrationStatusesWithCallable(): Promise<IntegrationS
       return { ...s, callable: c.callable, callableError: c.error };
     })(),
   ]);
-  return [woo, ship, square];
+  return [woo, slice, ship, square];
 }

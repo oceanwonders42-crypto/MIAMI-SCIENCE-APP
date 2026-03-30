@@ -49,6 +49,8 @@ export interface SliceWPAffiliatePatch {
   referralLink: string | null;
   couponCode: string | null;
   payoutStatus: string | null;
+  /** Email on the SliceWP affiliate record (for WC coupon restriction checks). */
+  affiliateEmail: string | null;
 }
 
 /**
@@ -149,8 +151,52 @@ function parseAffiliateList(json: unknown): Record<string, unknown>[] {
   return [];
 }
 
+function affiliateEmailFromRow(row: Record<string, unknown>): string | null {
+  return (
+    pickString(row, ["email", "user_email", "payment_email"])?.trim() ?? null
+  );
+}
+
+/**
+ * All SliceWP affiliate ids whose record email matches (normalized). Used to detect ambiguity.
+ */
+export async function findSliceWPAffiliateIdsByEmail(
+  email: string | null | undefined
+): Promise<{ ids: string[]; apiError: string | null }> {
+  if (!isSliceWPSyncEnabled()) return { ids: [], apiError: null };
+  const needle = email?.trim().toLowerCase() ?? "";
+  if (!needle) return { ids: [], apiError: null };
+
+  const ids: string[] = [];
+  for (let page = 1; page <= 10; page++) {
+    const res = await slicewpFetch(
+      `/affiliates?per_page=50&page=${page}&context=edit`
+    );
+    if (!res?.ok) {
+      return {
+        ids,
+        apiError: res ? `SliceWP affiliates list HTTP ${res.status}` : "SliceWP request failed",
+      };
+    }
+    const json: unknown = await res.json().catch(() => null);
+    const rows = parseAffiliateList(json);
+    if (rows.length === 0) break;
+
+    for (const row of rows) {
+      const em = affiliateEmailFromRow(row)?.toLowerCase() ?? null;
+      if (em === needle) {
+        const id = pickString(row, ["id"]) ?? String(row.id ?? "");
+        if (id) ids.push(id);
+      }
+    }
+    if (rows.length < 50) break;
+  }
+  return { ids, apiError: null };
+}
+
 /**
  * Resolve SliceWP affiliate id: prefer DB column, else match list by email (case-insensitive).
+ * If multiple affiliates share the same email, returns null (unsafe to auto-link).
  */
 export async function resolveSliceWPAffiliateId(options: {
   storedId: string | null | undefined;
@@ -160,30 +206,9 @@ export async function resolveSliceWPAffiliateId(options: {
   const sid = options.storedId?.trim();
   if (sid) return sid;
 
-  const email = options.userEmail?.trim().toLowerCase();
-  if (!email) return null;
-
-  for (let page = 1; page <= 10; page++) {
-    const res = await slicewpFetch(
-      `/affiliates?per_page=50&page=${page}&context=edit`
-    );
-    if (!res?.ok) break;
-    const json: unknown = await res.json().catch(() => null);
-    const rows = parseAffiliateList(json);
-    if (rows.length === 0) break;
-
-    for (const row of rows) {
-      const em =
-        pickString(row, ["email", "user_email", "payment_email"])?.toLowerCase() ??
-        null;
-      if (em === email) {
-        const id = pickString(row, ["id"]) ?? String(row.id ?? "");
-        if (id) return id;
-      }
-    }
-    if (rows.length < 50) break;
-  }
-  return null;
+  const { ids, apiError } = await findSliceWPAffiliateIdsByEmail(options.userEmail);
+  if (apiError || ids.length !== 1) return null;
+  return ids[0] ?? null;
 }
 
 /**
@@ -209,8 +234,9 @@ export async function fetchSliceWPAffiliatePatch(
   const couponCode = pickString(row, ["coupon_code", "coupon"]) ?? null;
   const payoutStatus =
     pickString(row, ["payout_status", "payment_status", "status"]) ?? null;
+  const affiliateEmail = affiliateEmailFromRow(row);
 
-  return { referralLink, couponCode, payoutStatus };
+  return { referralLink, couponCode, payoutStatus, affiliateEmail };
 }
 
 async function fetchWpTotalCount(path: string): Promise<number> {
@@ -484,4 +510,18 @@ export async function fetchSliceWPAffiliateProfile(
   if (!isSliceWPSyncEnabled()) return null;
   await fetchSliceWPAffiliatePatch(externalAffiliateId);
   return null;
+}
+
+/** Admin diagnostics: verify SliceWP REST responds (no payload secrets logged). */
+export async function checkSliceWPConnectivity(): Promise<{
+  ok: boolean;
+  error?: string;
+}> {
+  if (!isSliceWPSyncEnabled()) {
+    return { ok: false, error: "SliceWP not configured (env)" };
+  }
+  const res = await slicewpFetch("/affiliates?per_page=1&page=1&context=edit");
+  if (!res) return { ok: false, error: "Network error" };
+  if (!res.ok) return { ok: false, error: `HTTP ${res.status}` };
+  return { ok: true };
 }

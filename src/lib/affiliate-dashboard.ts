@@ -13,6 +13,7 @@ import {
   syncSliceWPAffiliateStats,
   fetchSliceWPDashboardBundle,
 } from "@/lib/integrations/slicewp";
+import type { AffiliateExternalSyncPresentation } from "@/lib/integrations/affiliate-external-sync";
 
 export type AffiliateConnectionBanner =
   | { variant: "connected"; label: string; lastSyncedAt: string | null }
@@ -74,12 +75,14 @@ async function resolveSliceIdForUser(
   userId: string
 ): Promise<string | null> {
   if (!isSliceWPSyncEnabled()) return null;
+  const profile = await getAffiliateProfile(supabase, userId);
+  const stored = profile?.slicewp_affiliate_id?.trim();
+  if (stored) return stored;
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  const profile = await getAffiliateProfile(supabase, userId);
   return resolveSliceWPAffiliateId({
-    storedId: profile?.slicewp_affiliate_id,
+    storedId: null,
     userEmail: user?.email ?? null,
   });
 }
@@ -87,7 +90,8 @@ async function resolveSliceIdForUser(
 export async function getAffiliateConnectionBanner(
   supabase: SupabaseClient,
   userId: string,
-  lastSyncedAt: string | null
+  lastSyncedAt: string | null,
+  externalSync?: AffiliateExternalSyncPresentation | null
 ): Promise<AffiliateConnectionBanner> {
   if (!isSliceWPSyncEnabled()) {
     return {
@@ -96,7 +100,9 @@ export async function getAffiliateConnectionBanner(
       detail: "Set up SliceWP in Admin → Integrations",
     };
   }
-  const sliceId = await resolveSliceIdForUser(supabase, userId);
+  const sliceId =
+    externalSync?.slicewpAffiliateId?.trim() ||
+    (await resolveSliceIdForUser(supabase, userId));
   if (!sliceId) {
     return {
       variant: "configured_unlinked",
@@ -145,10 +151,10 @@ export async function loadAffiliateTabData(
   referredOrders: ReferredOrderView[];
   lastSyncedAt: string | null;
 }> {
-  const [profileView, sliceId] = await Promise.all([
-    affiliateProvider.getProfileView(supabase, userId, baseUrl),
-    resolveSliceIdForUser(supabase, userId),
-  ]);
+  const profileView = await affiliateProvider.getProfileView(supabase, userId, baseUrl);
+  const sliceId =
+    profileView.externalSync?.slicewpAffiliateId ??
+    (await resolveSliceIdForUser(supabase, userId));
 
   let lastSyncedAt: string | null = null;
   const { data: cacheRow } = await supabase
@@ -229,7 +235,12 @@ export async function loadAffiliateTabData(
     }
   }
 
-  const connection = await getAffiliateConnectionBanner(supabase, userId, lastSyncedAt);
+  const connection = await getAffiliateConnectionBanner(
+    supabase,
+    userId,
+    lastSyncedAt,
+    profileView.externalSync
+  );
 
   return {
     profileView,
