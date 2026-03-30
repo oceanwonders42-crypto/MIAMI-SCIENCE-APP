@@ -1,7 +1,22 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { updateSession } from "@/lib/supabase/middleware";
 
-const PROTECTED_PREFIXES = ["/dashboard", "/onboarding", "/account", "/training", "/progress", "/stack", "/orders", "/rewards", "/community"];
+const PROTECTED_PREFIXES = [
+  "/dashboard",
+  "/onboarding",
+  "/account",
+  "/training",
+  "/progress",
+  "/calories",
+  "/stack",
+  "/orders",
+  "/rewards",
+  "/community",
+  "/catalog",
+  "/cart",
+  "/checkout",
+  "/help",
+];
 const AFFILIATE_ONLY = ["/affiliate"];
 const ADMIN_ONLY = ["/admin"];
 

@@ -8,6 +8,8 @@ import { ROUTES, isAppStoreBuild } from "@/lib/constants";
 import { isAffiliateOrAdmin } from "@/lib/auth";
 import { AFFILIATE_ROOM_SLUG } from "@/lib/affiliate-chat";
 
+const COMMUNITY_AFFILIATE_HREF = `${ROUTES.community}?room=${encodeURIComponent(AFFILIATE_ROOM_SLUG)}`;
+
 const MAIN_NAV: { href: string; label: string; roles?: UserRole[] }[] = [
   { href: ROUTES.dashboard, label: "Dashboard" },
   { href: ROUTES.training, label: "Training" },
@@ -18,7 +20,8 @@ const MAIN_NAV: { href: string; label: string; roles?: UserRole[] }[] = [
   { href: ROUTES.orders, label: "Orders" },
   { href: ROUTES.rewards, label: "Rewards" },
   { href: ROUTES.affiliate, label: "Affiliate", roles: ["affiliate", "admin"] },
-  { href: ROUTES.community, label: "Community", roles: ["affiliate", "admin"] },
+  /** Same destination as bottom “Chat” and Explore — avoids wrong default room and fixes active state. */
+  { href: COMMUNITY_AFFILIATE_HREF, label: "Community", roles: ["affiliate", "admin"] },
   { href: ROUTES.help, label: "Help" },
   { href: ROUTES.admin, label: "Admin", roles: ["admin"] },
   { href: ROUTES.account, label: "Account" },
@@ -51,9 +54,16 @@ export function AppNav({
     return (
       <nav className="flex flex-col gap-1 p-2" aria-label="Main navigation">
         {items.map((item) => {
-          const isActive =
-            pathname === item.href || pathname.startsWith(item.href + "/");
-          const isCommunity = item.href === ROUTES.community;
+          const isAffiliateCommunity =
+            item.href.startsWith(ROUTES.community) &&
+            item.href.includes(`room=${AFFILIATE_ROOM_SLUG}`);
+          const isActive = isAffiliateCommunity
+            ? pathname.startsWith(ROUTES.community) &&
+              searchParams.get("room") === AFFILIATE_ROOM_SLUG
+            : pathname === item.href ||
+              (item.href.split("?")[0] &&
+                pathname.startsWith(`${item.href.split("?")[0]}/`));
+          const isCommunity = isAffiliateCommunity || item.href === ROUTES.community;
           const showUnread =
             isCommunity &&
             isAffiliateOrAdmin(role) &&
@@ -96,7 +106,7 @@ export function AppNav({
   ];
   if (isAffiliateOrAdmin(role)) {
     bottomItems.push({
-      href: `${ROUTES.community}?room=${AFFILIATE_ROOM_SLUG}`,
+      href: COMMUNITY_AFFILIATE_HREF,
       label: "Chat",
     });
   }

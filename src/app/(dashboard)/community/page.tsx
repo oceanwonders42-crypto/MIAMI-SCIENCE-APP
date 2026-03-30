@@ -50,6 +50,10 @@ export default async function CommunityPage({
   /** Match bottom nav “Chat” (/community?room=affiliates): public rooms sort first in DB, so avoid defaulting there. */
   const preferredDefault =
     rooms.find((r) => r.slug === AFFILIATE_ROOM_SLUG)?.slug ?? rooms[0]?.slug ?? "community";
+  /** Canonical URL so client nav active state and bookmarks match the room being shown. */
+  if (!params.room?.trim() && rooms.length > 0) {
+    redirect(`${ROUTES.community}?room=${encodeURIComponent(preferredDefault)}`);
+  }
   const roomSlug = params.room?.trim() || preferredDefault;
   const currentRoom =
     rooms.find((r) => r.slug === roomSlug) ?? rooms[0] ?? null;
