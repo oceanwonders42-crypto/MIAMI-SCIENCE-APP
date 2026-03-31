@@ -3,11 +3,13 @@
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { WooCommerceConfig } from "@/lib/integrations/woocommerce-client";
 import {
   getWooCommerceConfig,
   createWooCommerceCoupon,
   deleteWooCommerceCoupon,
   fetchCouponsByCodeSearch,
+  fetchCustomersSearch,
   pickCouponMatchingCode,
 } from "@/lib/integrations/woocommerce-client";
 import {
@@ -46,13 +48,28 @@ export async function checkAffiliatePromoCodeTaken(
   return { taken: false };
 }
 
+/** SliceWP create requires a WordPress user; Woo customer id matches WP user id for registered customers. */
+async function resolveWooCustomerWordPressUserId(
+  woo: WooCommerceConfig,
+  email: string
+): Promise<number | null> {
+  const em = email.trim().toLowerCase();
+  const res = await fetchCustomersSearch(woo, em, { per_page: 20, page: 1 });
+  if (!res.ok || !res.data?.length) return null;
+  for (const c of res.data) {
+    if (String(c.email ?? "").trim().toLowerCase() === em) return c.id;
+  }
+  return null;
+}
+
 function buildSliceCreatePayloadFull(
   email: string,
   commission: number,
-  couponCode: string
+  couponCode: string,
+  wpUserId: number | null
 ): Record<string, unknown> {
   const em = email.trim().toLowerCase();
-  return {
+  const o: Record<string, unknown> = {
     email: em,
     user_email: em,
     payment_email: em,
@@ -61,28 +78,36 @@ function buildSliceCreatePayloadFull(
     commission: String(commission),
     coupon_code: couponCode,
   };
+  if (wpUserId != null) o.user_id = wpUserId;
+  return o;
 }
 
-function buildSliceCreatePayloadMinimal(email: string): Record<string, unknown> {
+function buildSliceCreatePayloadMinimal(email: string, wpUserId: number | null): Record<string, unknown> {
   const em = email.trim().toLowerCase();
-  return {
+  const o: Record<string, unknown> = {
     email: em,
     user_email: em,
     payment_email: em,
     status: "active",
   };
+  if (wpUserId != null) o.user_id = wpUserId;
+  return o;
 }
 
 async function resolveSliceCreate(
   email: string,
   commission: number,
-  couponCode: string
+  couponCode: string,
+  woo: WooCommerceConfig
 ): Promise<{ id: string } | { error: string }> {
-  const full = await createSliceWPAffiliate(buildSliceCreatePayloadFull(email, commission, couponCode));
+  const wpUserId = await resolveWooCustomerWordPressUserId(woo, email);
+  const full = await createSliceWPAffiliate(
+    buildSliceCreatePayloadFull(email, commission, couponCode, wpUserId)
+  );
   if ("id" in full && full.id) return { id: full.id };
   const fullErr = "error" in full ? full.error : "SliceWP create failed";
 
-  const minimal = await createSliceWPAffiliate(buildSliceCreatePayloadMinimal(email));
+  const minimal = await createSliceWPAffiliate(buildSliceCreatePayloadMinimal(email, wpUserId));
   if (!("id" in minimal) || !minimal.id) {
     const msg = "error" in minimal ? minimal.error : fullErr;
     return { error: msg };
@@ -144,7 +169,7 @@ export async function provisionAffiliateViaOnboarding(options: {
   const discount = Number(settings.default_coupon_discount_percent);
   const commission = Number(settings.default_commission_percent);
 
-  const slice = await resolveSliceCreate(options.email, commission, norm.code);
+  const slice = await resolveSliceCreate(options.email, commission, norm.code, woo);
   if ("error" in slice) {
     return { ok: false, error: `SliceWP: ${slice.error}` };
   }
