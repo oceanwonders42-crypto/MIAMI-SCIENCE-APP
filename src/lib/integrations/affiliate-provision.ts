@@ -19,7 +19,10 @@ import {
   isSliceWPSyncEnabled,
 } from "@/lib/integrations/slicewp";
 import { getAffiliateProgramSettings } from "@/lib/affiliate-program-settings";
-import { normalizeAffiliatePromoCode } from "@/lib/affiliate-access";
+import {
+  normalizeAffiliatePromoCode,
+  hasCompletedAffiliateProgramOnboarding,
+} from "@/lib/affiliate-access";
 import { getAffiliateProfile } from "@/lib/affiliates";
 
 export type ProvisionOnboardingResult =
@@ -161,13 +164,78 @@ export async function provisionAffiliateViaOnboarding(options: {
   }
 
   const existingProfile = await getAffiliateProfile(options.serviceSb, options.userId);
-  if (existingProfile?.slicewp_affiliate_id?.trim()) {
+  if (hasCompletedAffiliateProgramOnboarding(existingProfile)) {
     return { ok: false, error: "Your account is already linked as an affiliate." };
   }
 
   const settings = await getAffiliateProgramSettings(options.serviceSb);
   const discount = Number(settings.default_coupon_discount_percent);
   const commission = Number(settings.default_commission_percent);
+
+  const existingSliceId = existingProfile?.slicewp_affiliate_id?.trim() ?? "";
+  const needsWooCoupon =
+    !existingProfile ||
+    existingProfile.woo_coupon_id == null ||
+    !Number.isFinite(Number(existingProfile.woo_coupon_id)) ||
+    Number(existingProfile.woo_coupon_id) <= 0;
+
+  if (existingSliceId && needsWooCoupon && existingProfile) {
+    const sliceId = existingSliceId;
+    const couponBody: Record<string, unknown> = {
+      code: norm.code,
+      discount_type: "percent",
+      amount: String(discount),
+      individual_use: false,
+      exclude_sale_items: false,
+      email_restrictions: [options.email.trim().toLowerCase()],
+    };
+
+    const wooRes = await createWooCommerceCoupon(woo, couponBody);
+    if (!wooRes.ok) {
+      const errSnippet = wooRes.error.slice(0, 280);
+      return { ok: false, error: `WooCommerce coupon failed: ${errSnippet}` };
+    }
+    const wooId = wooRes.data.id;
+
+    const sliceLink = await updateSliceWPAffiliate(sliceId, {
+      payment_email: options.email.trim().toLowerCase(),
+      coupon_code: norm.code,
+      commission_rate: String(commission),
+      commission: String(commission),
+    });
+    if ("error" in sliceLink) {
+      await deleteWooCommerceCoupon(woo, wooId);
+      return { ok: false, error: `SliceWP coupon link failed: ${sliceLink.error}` };
+    }
+
+    const referralCode = norm.code;
+    const nowIso = new Date().toISOString();
+
+    const { error } = await options.serviceSb
+      .from("affiliate_profiles")
+      .update({
+        referral_code: referralCode,
+        coupon_code: norm.code,
+        slicewp_affiliate_id: sliceId,
+        woo_coupon_id: wooId,
+        coupon_discount_percent: discount,
+        commission_percent: commission,
+        affiliate_external_sync_error: null,
+        affiliate_external_synced_at: nowIso,
+        updated_at: nowIso,
+      })
+      .eq("id", existingProfile.id);
+    if (error) {
+      await deleteWooCommerceCoupon(woo, wooId);
+      return { ok: false, error: error.message };
+    }
+
+    await options.serviceSb.from("user_roles").update({ role: "affiliate" }).eq("user_id", options.userId);
+
+    await options.serviceSb.from("affiliate_onboarding_sessions").delete().eq("user_id", options.userId);
+
+    return { ok: true, slicewpAffiliateId: sliceId, wooCouponId: wooId, promoCode: norm.code };
+  }
 
   const slice = await resolveSliceCreate(options.email, commission, norm.code, woo);
   if ("error" in slice) {
