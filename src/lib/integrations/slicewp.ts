@@ -50,6 +50,8 @@ export interface SliceWPCommissionMetrics {
   referralUsesAllTime: number;
   /** Commission rows dated this calendar month (UTC) */
   referralUsesThisMonth: number;
+  /** Rows included in availablePayoutCents (unpaid / eligible for payout, excludes rejected & paid). */
+  pendingPayoutRowCount: number;
 }
 
 export interface SliceWPAffiliatePatch {
@@ -165,6 +167,21 @@ async function slicewpFetch(
   } catch {
     return null;
   }
+}
+
+/**
+ * Commission reads often fail with read-only API keys when using context=edit, or return 403 until
+ * using the write key pair. Try read credentials first, then write when different.
+ */
+async function slicewpFetchReadThenWrite(
+  path: string,
+  init?: RequestInit
+): Promise<Response | null> {
+  const readRes = await slicewpFetch(path, init, { credentialProfile: "read" });
+  if (readRes?.ok) return readRes;
+  const writeRes = await slicewpFetch(path, init, { credentialProfile: "write" });
+  if (writeRes?.ok) return writeRes;
+  return readRes ?? writeRes;
 }
 
 function asRecord(v: unknown): Record<string, unknown> | null {
@@ -351,7 +368,7 @@ export async function fetchSliceWPAffiliatePatch(
 }
 
 async function fetchWpTotalCount(path: string): Promise<number> {
-  const res = await slicewpFetch(path);
+  const res = await slicewpFetchReadThenWrite(path);
   if (!res?.ok) return 0;
   const total = res.headers.get("x-wp-total");
   if (total != null) {
@@ -374,14 +391,75 @@ function visitsQueryAlt(affiliateId: string): string {
   return `/visits?affiliate_id=${id}&per_page=1&page=1`;
 }
 
-function commissionsQuery(affiliateId: string, page: number, perPage: number): string {
-  const id = encodeURIComponent(affiliateId);
-  return `/commissions?affiliate_id=${id}&per_page=${perPage}&page=${page}&context=edit`;
+const COMMISSION_PAGE_STRATEGIES = 4;
+
+/** SliceWP accepts different query shapes; read-only keys often reject context=edit on /commissions. */
+function commissionsPathForStrategy(
+  strategy: number,
+  affiliateIdEncoded: string,
+  page: number,
+  perPage: number
+): string {
+  const id = affiliateIdEncoded;
+  switch (strategy) {
+    case 0:
+      return `/commissions?affiliate_id=${id}&per_page=${perPage}&page=${page}&context=edit`;
+    case 1:
+      return `/commissions?affiliate_id=${id}&per_page=${perPage}&page=${page}`;
+    case 2:
+      return `/commissions?affiliate=${id}&per_page=${perPage}&page=${page}&context=edit`;
+    case 3:
+      return `/commissions?affiliate=${id}&per_page=${perPage}&page=${page}`;
+    default:
+      return `/commissions?affiliate_id=${id}&per_page=${perPage}&page=${page}`;
+  }
 }
 
-function commissionsQueryAlt(affiliateId: string, page: number, perPage: number): string {
-  const id = encodeURIComponent(affiliateId);
-  return `/commissions?affiliate=${id}&per_page=${perPage}&page=${page}&context=edit`;
+async function resolveCommissionPageStrategy(affiliateId: string): Promise<number | null> {
+  const enc = encodeURIComponent(affiliateId);
+  for (let s = 0; s < COMMISSION_PAGE_STRATEGIES; s++) {
+    const path = commissionsPathForStrategy(s, enc, 1, 1);
+    const res = await slicewpFetchReadThenWrite(path);
+    if (res?.ok) return s;
+  }
+  return null;
+}
+
+/**
+ * All commission rows for an affiliate (paginated, resilient to API/auth variants). De-duplicates by Slice id.
+ */
+export async function fetchAllRawCommissionRowsForAffiliate(
+  affiliateId: string,
+  maxPages = 25,
+  perPage = 100
+): Promise<Record<string, unknown>[]> {
+  if (!isSliceWPSyncEnabled()) return [];
+  const strategy = await resolveCommissionPageStrategy(affiliateId);
+  if (strategy == null) return [];
+
+  const enc = encodeURIComponent(affiliateId);
+  const idStr = String(affiliateId);
+  const byId = new Map<string, Record<string, unknown>>();
+
+  for (let page = 1; page <= maxPages; page++) {
+    const path = commissionsPathForStrategy(strategy, enc, page, perPage);
+    const res = await slicewpFetchReadThenWrite(path);
+    if (!res?.ok) break;
+    const json: unknown = await res.json().catch(() => null);
+    let rows = parseAffiliateList(json);
+    rows = rows.filter((r) => {
+      const aid = pickString(r, ["affiliate_id", "affiliate"]) ?? String(r.affiliate_id ?? "");
+      return aid === idStr || aid === affiliateId;
+    });
+    for (const r of rows) {
+      const cid = pickString(r, ["id"]) ?? (r.id != null ? String(r.id) : "");
+      if (cid) byId.set(cid, r);
+      else byId.set(`anon-${byId.size}`, r);
+    }
+    if (rows.length < perPage) break;
+  }
+
+  return [...byId.values()];
 }
 
 function parseIsoDate(value: string | null): Date | null {
@@ -450,31 +528,16 @@ function parseCommissionRowToView(
   };
 }
 
-async function fetchAllCommissionRowsForAffiliate(
+export async function fetchAllCommissionRowsForAffiliate(
   affiliateId: string,
   maxPages = 25
 ): Promise<SliceWPReferredOrderView[]> {
-  if (!isSliceWPSyncEnabled()) return [];
-  const idStr = String(affiliateId);
+  const raw = await fetchAllRawCommissionRowsForAffiliate(affiliateId, maxPages, 100);
   const out: SliceWPReferredOrderView[] = [];
   let idx = 0;
-  for (let page = 1; page <= maxPages; page++) {
-    let res = await slicewpFetch(commissionsQuery(affiliateId, page, 100));
-    if (!res?.ok) {
-      res = await slicewpFetch(commissionsQueryAlt(affiliateId, page, 100));
-    }
-    if (!res?.ok) break;
-    const json: unknown = await res.json().catch(() => null);
-    let rows = parseAffiliateList(json);
-    rows = rows.filter((r) => {
-      const aid = pickString(r, ["affiliate_id", "affiliate"]) ?? String(r.affiliate_id ?? "");
-      return aid === idStr || aid === affiliateId;
-    });
-    for (const r of rows) {
-      out.push(parseCommissionRowToView(r, idx));
-      idx += 1;
-    }
-    if (rows.length < 100) break;
+  for (const r of raw) {
+    out.push(parseCommissionRowToView(r, idx));
+    idx += 1;
   }
   return out;
 }
@@ -487,6 +550,7 @@ export function computeSliceWPCommissionMetrics(
   let monthEarnedCents = 0;
   let availablePayoutCents = 0;
   let referralUsesThisMonth = 0;
+  let pendingPayoutRowCount = 0;
 
   for (const row of rows) {
     if (isRejectedCommissionRaw(row.statusRaw)) continue;
@@ -498,6 +562,7 @@ export function computeSliceWPCommissionMetrics(
     }
     if (isAvailableForPayout(row.statusRaw, row.displayStatus)) {
       availablePayoutCents += row.commissionCents;
+      pendingPayoutRowCount += 1;
     }
   }
 
@@ -507,6 +572,7 @@ export function computeSliceWPCommissionMetrics(
     availablePayoutCents,
     referralUsesAllTime: rows.filter((r) => !isRejectedCommissionRaw(r.statusRaw)).length,
     referralUsesThisMonth,
+    pendingPayoutRowCount,
   };
 }
 
@@ -554,44 +620,16 @@ export async function syncSliceWPAffiliateStats(
     clicks = await fetchWpTotalCount(visitsQueryAlt(affiliateId));
   }
 
-  let commissionRows: Record<string, unknown>[] = [];
-  for (let page = 1; page <= 20; page++) {
-    let res = await slicewpFetch(commissionsQuery(affiliateId, page, 100));
-    if (!res?.ok) {
-      res = await slicewpFetch(commissionsQueryAlt(affiliateId, page, 100));
-    }
-    if (!res?.ok) break;
-    const json: unknown = await res.json().catch(() => null);
-    const batch = parseAffiliateList(json);
-    commissionRows = commissionRows.concat(batch);
-    if (batch.length < 100) break;
-  }
-
-  // If API ignored filter, keep rows that mention this affiliate
-  const idStr = String(affiliateId);
-  const filtered = commissionRows.filter((r) => {
-    const aid = pickString(r, ["affiliate_id", "affiliate"]) ?? String(r.affiliate_id ?? "");
-    return aid === idStr || aid === affiliateId;
-  });
-  const useRows = filtered.length > 0 ? filtered : commissionRows;
-
-  const conversions = useRows.length;
-  let commissionCents = 0;
-  for (const r of useRows) {
-    const amt = pickNumber(r, ["amount", "commission_amount", "commission"]);
-    if (amt != null) {
-      // SliceWP REST typically returns amounts in currency units (dollars).
-      commissionCents += Math.round(amt * 100);
-    }
-  }
+  const commissionViews = await fetchAllCommissionRowsForAffiliate(affiliateId, 20);
+  const metrics = computeSliceWPCommissionMetrics(commissionViews);
 
   const { error } = await supabase.from("affiliate_stats_cache").upsert(
     {
       user_id: userId,
       period: SLICEWP_STATS_PERIOD,
       clicks,
-      conversions,
-      commission_cents: commissionCents,
+      conversions: metrics.referralUsesAllTime,
+      commission_cents: metrics.totalEarnedCents,
       updated_at: new Date().toISOString(),
     },
     { onConflict: "user_id,period" }

@@ -32,6 +32,14 @@ export default async function AdminAffiliatesPage() {
     <>
       <Header title="Affiliates" subtitle="Manage affiliate profiles" />
       <div className="px-4 md:px-6 space-y-6 pb-8">
+        <p className="text-sm">
+          <Link
+            href={ROUTES.adminAffiliatePayouts}
+            className="text-primary-600 dark:text-primary-400 hover:underline font-medium"
+          >
+            Affiliate payouts & SliceWP cache rebuild →
+          </Link>
+        </p>
         <Section title="Add affiliate">
           <AffiliateForm />
         </Section>

@@ -76,13 +76,23 @@ export default async function AdminPage() {
 
         <Section title="Tools">
           <div className="grid gap-4 md:grid-cols-2">
-            <Link href="/admin/affiliates">
+            <Link href={ROUTES.adminAffiliates}>
               <Card className="hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors h-full">
                 <CardHeader>
                   <CardTitle>Affiliates</CardTitle>
                 </CardHeader>
                 <CardContent className="text-sm text-zinc-600 dark:text-zinc-400">
                   Create and manage affiliate profiles, referral codes, and payout status.
+                </CardContent>
+              </Card>
+            </Link>
+            <Link href={ROUTES.adminAffiliatePayouts}>
+              <Card className="hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors h-full">
+                <CardHeader>
+                  <CardTitle>Affiliate payouts</CardTitle>
+                </CardHeader>
+                <CardContent className="text-sm text-zinc-600 dark:text-zinc-400">
+                  Pending SliceWP commissions, unpaid row counts, and stats cache backfill.
                 </CardContent>
               </Card>
             </Link>
