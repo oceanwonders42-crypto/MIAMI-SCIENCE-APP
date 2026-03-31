@@ -2,6 +2,8 @@
 
 import { createServerClient } from "@/lib/supabase/server";
 import { addMessage, ensureRoomMembership } from "@/lib/community";
+import { getRole } from "@/lib/auth";
+import { createServiceRoleClient } from "@/lib/supabase/service";
 import {
   AFFILIATE_ROOM_SLUG,
   upsertAffiliateChatReadReceipt,
@@ -187,6 +189,65 @@ export async function reportMessageAction(
     status: "pending",
   });
   if (error) return { success: false, error: error.message };
+  revalidatePath("/community");
+  revalidatePath("/admin/moderation");
+  return { success: true };
+}
+
+export async function moderateChatMessageAction(input: {
+  messageId: string;
+  action: "hide" | "unhide" | "delete";
+  reason?: string | null;
+}): Promise<{ success: true } | { success: false; error: string }> {
+  const supabase = await createServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { success: false, error: "Not authenticated" };
+  const role = await getRole(supabase, user.id);
+  if (role !== "admin") return { success: false, error: "Admin only" };
+
+  const messageId = input.messageId?.trim();
+  if (!messageId) return { success: false, error: "Message id required" };
+  const reason = input.reason?.trim() || null;
+  const now = new Date().toISOString();
+
+  let patch: Record<string, unknown>;
+  if (input.action === "hide") {
+    patch = {
+      is_hidden: true,
+      hidden_at: now,
+      hidden_by: user.id,
+      hidden_reason: reason,
+      moderation_note: reason,
+    };
+  } else if (input.action === "unhide") {
+    patch = {
+      is_hidden: false,
+      hidden_at: null,
+      hidden_by: null,
+      hidden_reason: null,
+      moderation_note: reason,
+    };
+  } else {
+    patch = {
+      deleted_at: now,
+      deleted_by: user.id,
+      moderation_note: reason,
+    };
+  }
+
+  try {
+    const svc = createServiceRoleClient();
+    const { error } = await svc
+      .from("chat_messages")
+      .update(patch as never)
+      .eq("id", messageId);
+    if (error) return { success: false, error: error.message };
+  } catch {
+    return { success: false, error: "Moderation update failed" };
+  }
+
   revalidatePath("/community");
   revalidatePath("/admin/moderation");
   return { success: true };

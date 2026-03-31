@@ -21,6 +21,8 @@ import { Section } from "@/components/ui/Section";
 import { PostMessageForm } from "./PostMessageForm";
 import { ReportButton } from "./ReportButton";
 import { CommunityRefreshButton } from "./CommunityRefreshButton";
+import { MessageModerationActions } from "./MessageModerationActions";
+import { BrandAtmosphereStrip } from "@/components/brand/BrandAtmosphereStrip";
 import { ROUTES } from "@/lib/constants";
 import { DISCLAIMER } from "@/lib/constants";
 import { formatTimestampUtcEnUS } from "@/lib/date-display";
@@ -63,6 +65,7 @@ export default async function CommunityPage({
     return (
       <>
         <Header title="Community" subtitle="Questions & discussion" />
+        <BrandAtmosphereStrip variant="heroSkyline" className="h-16 md:h-20" overlay="soft" />
         <div className="px-4 md:px-6 pb-8">
           <Card>
             <CardContent className="py-8 text-center text-sm text-zinc-500 dark:text-zinc-400">
@@ -79,7 +82,8 @@ export default async function CommunityPage({
   const messages = await getMessages(
     supabase,
     currentRoom.id,
-    isAffiliatesRoom ? 100 : 50
+    isAffiliatesRoom ? 100 : 50,
+    isAdmin(role)
   );
   const userIds = [...new Set(messages.map((m) => m.user_id))];
   const displayNames = await getDisplayNamesForUserIds(supabase, userIds);
@@ -99,6 +103,7 @@ export default async function CommunityPage({
   return (
     <>
       <Header title="Community" subtitle={currentRoom.name} />
+      <BrandAtmosphereStrip variant="heroSkyline" className="h-16 md:h-20" overlay="soft" />
       <div className="px-4 md:px-6 space-y-6 pb-8">
         <Section title="Rules & disclaimer">
           <Card className="border-zinc-200 dark:border-zinc-700">
@@ -178,13 +183,23 @@ export default async function CommunityPage({
                             {formatTimestampUtcEnUS(m.created_at)}
                           </span>
                           <p className="text-sm text-zinc-700 dark:text-zinc-300 mt-0.5 break-words">
-                            {m.content}
+                            {m.deleted_at
+                              ? "Message deleted by admin."
+                              : m.is_hidden
+                                ? `Message hidden by admin${m.hidden_reason ? `: ${m.hidden_reason}` : "."}`
+                                : m.content}
                           </p>
                         </div>
-                        <ReportButton
-                          messageId={m.id}
-                          roomId={currentRoom.id}
-                        />
+                        <div className="flex items-center gap-2">
+                          <ReportButton messageId={m.id} roomId={currentRoom.id} />
+                          {isAdmin(role) && (
+                            <MessageModerationActions
+                              messageId={m.id}
+                              isHidden={Boolean(m.is_hidden)}
+                              isDeleted={Boolean(m.deleted_at)}
+                            />
+                          )}
+                        </div>
                       </li>
                     ))}
                   </ul>

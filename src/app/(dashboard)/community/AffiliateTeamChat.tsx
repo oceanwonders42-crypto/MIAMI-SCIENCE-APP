@@ -10,6 +10,7 @@ import {
 } from "@/lib/affiliate-chat";
 import {
   chatPresenceHeartbeatAction,
+  moderateChatMessageAction,
   markAffiliateChatReadAction,
   pinAffiliateChatMessageAction,
   postMessageAction,
@@ -228,6 +229,13 @@ function normalizeMessage(row: Record<string, unknown>): ChatMessage {
     edited_at: (row.edited_at as string | null) ?? null,
     is_pinned: Boolean(row.is_pinned),
     is_admin_message: Boolean(row.is_admin_message),
+    is_hidden: Boolean(row.is_hidden),
+    hidden_at: (row.hidden_at as string | null) ?? null,
+    hidden_by: (row.hidden_by as string | null) ?? null,
+    hidden_reason: (row.hidden_reason as string | null) ?? null,
+    deleted_at: (row.deleted_at as string | null) ?? null,
+    deleted_by: (row.deleted_by as string | null) ?? null,
+    moderation_note: (row.moderation_note as string | null) ?? null,
   };
 }
 
@@ -268,6 +276,13 @@ export function AffiliateTeamChat({
       ...m,
       is_pinned: m.is_pinned ?? false,
       is_admin_message: m.is_admin_message ?? false,
+      is_hidden: m.is_hidden ?? false,
+      hidden_at: m.hidden_at ?? null,
+      hidden_by: m.hidden_by ?? null,
+      hidden_reason: m.hidden_reason ?? null,
+      deleted_at: m.deleted_at ?? null,
+      deleted_by: m.deleted_by ?? null,
+      moderation_note: m.moderation_note ?? null,
     }))
   );
 
@@ -277,6 +292,13 @@ export function AffiliateTeamChat({
         ...m,
         is_pinned: m.is_pinned ?? false,
         is_admin_message: m.is_admin_message ?? false,
+        is_hidden: m.is_hidden ?? false,
+        hidden_at: m.hidden_at ?? null,
+        hidden_by: m.hidden_by ?? null,
+        hidden_reason: m.hidden_reason ?? null,
+        deleted_at: m.deleted_at ?? null,
+        deleted_by: m.deleted_by ?? null,
+        moderation_note: m.moderation_note ?? null,
       }))
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -447,6 +469,20 @@ export function AffiliateTeamChat({
     }
   }
 
+  async function handleModeration(
+    messageId: string,
+    action: "hide" | "unhide" | "delete"
+  ) {
+    let reason: string | null = null;
+    if (action !== "unhide") {
+      reason = window.prompt("Moderation reason (optional):", "")?.trim() || null;
+    }
+    const result = await moderateChatMessageAction({ messageId, action, reason });
+    if (!result.success) {
+      setError(result.error);
+    }
+  }
+
   const onlineInRoom = onlineIds.size;
 
   return (
@@ -579,7 +615,15 @@ export function AffiliateTeamChat({
                       void handlePin(m.id, !m.is_pinned);
                     }}
                   >
-                    {m.content}
+                    {m.deleted_at ? (
+                      <span className="italic text-zinc-400">Message deleted by admin.</span>
+                    ) : m.is_hidden ? (
+                      <span className="italic text-zinc-400">
+                        Message hidden by admin{m.hidden_reason ? `: ${m.hidden_reason}` : "."}
+                      </span>
+                    ) : (
+                      m.content
+                    )}
                   </div>
                   <div className="flex flex-wrap gap-1 mt-1 justify-end max-w-full">
                     {QUICK_REACTION_EMOJIS.map((emoji) => {
@@ -613,14 +657,39 @@ export function AffiliateTeamChat({
                   >
                     <ReportButton messageId={m.id} roomId={roomId} />
                     {isAdmin && (
-                      <button
-                        type="button"
-                        disabled={pinningId === m.id}
-                        onClick={() => handlePin(m.id, !m.is_pinned)}
-                        className="text-[11px] font-medium text-emerald-400 hover:text-emerald-300 disabled:opacity-50"
-                      >
-                        {m.is_pinned ? "Unpin" : "Pin"}
-                      </button>
+                      <>
+                        <button
+                          type="button"
+                          disabled={pinningId === m.id}
+                          onClick={() => handlePin(m.id, !m.is_pinned)}
+                          className="text-[11px] font-medium text-emerald-400 hover:text-emerald-300 disabled:opacity-50"
+                        >
+                          {m.is_pinned ? "Unpin" : "Pin"}
+                        </button>
+                        {!m.deleted_at && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              void handleModeration(
+                                m.id,
+                                m.is_hidden ? "unhide" : "hide"
+                              )
+                            }
+                            className="text-[11px] font-medium text-amber-400 hover:text-amber-300"
+                          >
+                            {m.is_hidden ? "Unhide" : "Hide"}
+                          </button>
+                        )}
+                        {!m.deleted_at && (
+                          <button
+                            type="button"
+                            onClick={() => void handleModeration(m.id, "delete")}
+                            className="text-[11px] font-medium text-red-400 hover:text-red-300"
+                          >
+                            Delete
+                          </button>
+                        )}
+                      </>
                     )}
                   </div>
                 </div>

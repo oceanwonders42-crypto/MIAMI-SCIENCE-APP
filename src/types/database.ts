@@ -325,6 +325,13 @@ export interface ChatMessage {
   edited_at: string | null;
   is_pinned: boolean;
   is_admin_message: boolean;
+  is_hidden: boolean;
+  hidden_at: string | null;
+  hidden_by: string | null;
+  hidden_reason: string | null;
+  deleted_at: string | null;
+  deleted_by: string | null;
+  moderation_note: string | null;
 }
 
 export interface ChatReadReceipt {

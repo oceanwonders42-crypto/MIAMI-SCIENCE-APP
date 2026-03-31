@@ -1,5 +1,4 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { UserRole } from "@/types";
 import type { ChatRoom, ChatMessage } from "@/types";
 
 export async function getRoomsForUser(
@@ -19,7 +18,8 @@ export async function getRoomsForUser(
 export async function getMessages(
   supabase: SupabaseClient,
   roomId: string,
-  limit = 50
+  limit = 50,
+  includeModerated = false
 ): Promise<ChatMessage[]> {
   const { data, error } = await supabase
     .from("chat_messages")
@@ -28,7 +28,18 @@ export async function getMessages(
     .order("created_at", { ascending: true })
     .limit(limit);
   if (error) return [];
-  return (data ?? []) as ChatMessage[];
+  const rows = ((data ?? []) as ChatMessage[]).map((m) => ({
+    ...m,
+    is_hidden: m.is_hidden ?? false,
+    hidden_at: m.hidden_at ?? null,
+    hidden_by: m.hidden_by ?? null,
+    hidden_reason: m.hidden_reason ?? null,
+    deleted_at: m.deleted_at ?? null,
+    deleted_by: m.deleted_by ?? null,
+    moderation_note: m.moderation_note ?? null,
+  }));
+  if (includeModerated) return rows;
+  return rows.filter((m) => !m.is_hidden && !m.deleted_at);
 }
 
 export async function ensureRoomMembership(
