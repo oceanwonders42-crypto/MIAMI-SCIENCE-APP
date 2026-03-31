@@ -8,6 +8,11 @@
  * - SLICEWP_CONSUMER_KEY
  * - SLICEWP_CONSUMER_SECRET
  *
+ * Optional (mutations only — POST/PUT/DELETE affiliates): if set, used instead of the
+ * pair above so you can keep a read-only key for GETs and a Read/Write key for ULTRA:
+ * - SLICEWP_WRITE_CONSUMER_KEY
+ * - SLICEWP_WRITE_CONSUMER_SECRET
+ *
  * Optional: affiliate_profiles.slicewp_affiliate_id (admin) to skip email lookup.
  */
 
@@ -17,6 +22,8 @@ const SLICEWP_SYNC_ENABLED = process.env.SLICEWP_SYNC_ENABLED === "true";
 const SLICEWP_API_URL_RAW = process.env.SLICEWP_API_URL?.trim() ?? "";
 const SLICEWP_CONSUMER_KEY = process.env.SLICEWP_CONSUMER_KEY?.trim() ?? "";
 const SLICEWP_CONSUMER_SECRET = process.env.SLICEWP_CONSUMER_SECRET?.trim() ?? "";
+const SLICEWP_WRITE_CONSUMER_KEY = process.env.SLICEWP_WRITE_CONSUMER_KEY?.trim() ?? "";
+const SLICEWP_WRITE_CONSUMER_SECRET = process.env.SLICEWP_WRITE_CONSUMER_SECRET?.trim() ?? "";
 
 /** Stats / referred orders period written to affiliate_stats_cache */
 export const SLICEWP_STATS_PERIOD = "slice_sync";
@@ -83,44 +90,78 @@ export function isSliceWPSyncEnabled(): boolean {
   );
 }
 
+type SliceWPCredentialProfile = "read" | "write";
+
+function getSliceWPCredentials(
+  profile: SliceWPCredentialProfile
+): { key: string; secret: string } | null {
+  if (profile === "write") {
+    if (SLICEWP_WRITE_CONSUMER_KEY && SLICEWP_WRITE_CONSUMER_SECRET) {
+      return { key: SLICEWP_WRITE_CONSUMER_KEY, secret: SLICEWP_WRITE_CONSUMER_SECRET };
+    }
+  }
+  if (!SLICEWP_CONSUMER_KEY || !SLICEWP_CONSUMER_SECRET) return null;
+  return { key: SLICEWP_CONSUMER_KEY, secret: SLICEWP_CONSUMER_SECRET };
+}
+
 /**
  * SliceWP REST API add-on validates consumer_key + consumer_secret from query string
- * or Basic auth. Basic auth is interpreted by WordPress as a WP user on many hosts
- * (401 invalid_username), so we always pass credentials as query parameters.
+ * or Basic auth (docs: consumer key as user, secret as password). Query params avoid
+ * WP interpreting Basic as a core user on some hosts (401 invalid_username); for
+ * mutations that return 403 with query auth, we retry once with Basic.
  */
-function appendSliceWPAuthQuery(path: string): string {
-  const ck = SLICEWP_CONSUMER_KEY;
-  const cs = SLICEWP_CONSUMER_SECRET;
-  if (!ck || !cs) return path.startsWith("/") ? path : `/${path}`;
+function appendSliceWPAuthQuery(path: string, key: string, secret: string): string {
   const p = path.startsWith("/") ? path : `/${path}`;
   const q = new URLSearchParams({
-    consumer_key: ck,
-    consumer_secret: cs,
+    consumer_key: key,
+    consumer_secret: secret,
   }).toString();
   return p.includes("?") ? `${p}&${q}` : `${p}?${q}`;
 }
 
 async function slicewpFetch(
   path: string,
-  init?: RequestInit
+  init?: RequestInit,
+  options?: { credentialProfile?: SliceWPCredentialProfile }
 ): Promise<Response | null> {
   const base = getApiBase();
   if (!base) return null;
-  const pathWithAuth = appendSliceWPAuthQuery(path);
-  const url = `${base}${pathWithAuth}`;
-  try {
+  const profile = options?.credentialProfile ?? "read";
+  const creds = getSliceWPCredentials(profile);
+  if (!creds) return null;
+  const pathWithAuth = appendSliceWPAuthQuery(path, creds.key, creds.secret);
+  const urlQuery = `${base}${pathWithAuth}`;
+  const buildHeaders = (extra?: Record<string, string>): Record<string, string> => {
     const headers: Record<string, string> = {
       Accept: "application/json",
       ...((init?.headers as Record<string, string> | undefined) ?? {}),
+      ...extra,
     };
     if (init?.body != null && !headers["Content-Type"]) {
       headers["Content-Type"] = "application/json";
     }
-    return await fetch(url, {
+    return headers;
+  };
+  try {
+    const res = await fetch(urlQuery, {
       ...init,
-      headers,
+      headers: buildHeaders(),
       cache: "no-store",
     });
+    const method = (init?.method ?? "GET").toUpperCase();
+    const isMutation = method !== "GET" && method !== "HEAD";
+    if (isMutation && res.status === 403) {
+      const plainPath = path.startsWith("/") ? path : `/${path}`;
+      const urlBasic = `${base}${plainPath}`;
+      const basic = Buffer.from(`${creds.key}:${creds.secret}`).toString("base64");
+      const resBasic = await fetch(urlBasic, {
+        ...init,
+        headers: buildHeaders({ Authorization: `Basic ${basic}` }),
+        cache: "no-store",
+      });
+      if (resBasic.ok) return resBasic;
+    }
+    return res;
   } catch {
     return null;
   }
@@ -590,10 +631,14 @@ export async function createSliceWPAffiliate(
   payload: Record<string, unknown>
 ): Promise<{ id: string } | { error: string; status?: number }> {
   if (!isSliceWPSyncEnabled()) return { error: "SliceWP not configured" };
-  const res = await slicewpFetch("/affiliates", {
-    method: "POST",
-    body: JSON.stringify(payload),
-  });
+  const res = await slicewpFetch(
+    "/affiliates",
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+    { credentialProfile: "write" }
+  );
   if (!res) return { error: "SliceWP request failed" };
   const json: unknown = await res.json().catch(() => null);
   if (!res.ok) {
@@ -601,7 +646,18 @@ export async function createSliceWPAffiliate(
       typeof json === "object" && json && "message" in json
         ? String((json as { message: unknown }).message)
         : `HTTP ${res.status}`;
-    return { error: msg, status: res.status };
+    const code =
+      typeof json === "object" && json && "code" in json
+        ? String((json as { code: unknown }).code)
+        : "";
+    const needsWrite =
+      res.status === 403 ||
+      code === "rest_forbidden" ||
+      /not allowed to do that/i.test(msg);
+    const hint = needsWrite
+      ? " ULTRA needs a SliceWP API key with Write or Read/Write permission (SliceWP → Settings → Tools → API Keys), or set SLICEWP_WRITE_CONSUMER_KEY + SLICEWP_WRITE_CONSUMER_SECRET for mutations."
+      : "";
+    return { error: `${msg}${hint}`, status: res.status };
   }
   const row = normalizeSliceWPSingleAffiliatePayload(json);
   if (!row) return { error: "SliceWP create returned empty payload" };
@@ -619,15 +675,23 @@ export async function updateSliceWPAffiliate(
 ): Promise<{ ok: true } | { error: string; status?: number }> {
   if (!isSliceWPSyncEnabled()) return { error: "SliceWP not configured" };
   const id = encodeURIComponent(affiliateId);
-  const tryPost = await slicewpFetch(`/affiliates/${id}`, {
-    method: "POST",
-    body: JSON.stringify(payload),
-  });
+  const tryPost = await slicewpFetch(
+    `/affiliates/${id}`,
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+    { credentialProfile: "write" }
+  );
   if (tryPost?.ok) return { ok: true };
-  const tryPut = await slicewpFetch(`/affiliates/${id}`, {
-    method: "PUT",
-    body: JSON.stringify(payload),
-  });
+  const tryPut = await slicewpFetch(
+    `/affiliates/${id}`,
+    {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    },
+    { credentialProfile: "write" }
+  );
   if (tryPut?.ok) return { ok: true };
   const res = tryPut ?? tryPost;
   const json: unknown = await res?.json().catch(() => null);
@@ -643,7 +707,11 @@ export async function deleteSliceWPAffiliate(
 ): Promise<{ ok: true } | { error: string }> {
   if (!isSliceWPSyncEnabled()) return { error: "SliceWP not configured" };
   const id = encodeURIComponent(affiliateId);
-  const res = await slicewpFetch(`/affiliates/${id}`, { method: "DELETE" });
+  const res = await slicewpFetch(
+    `/affiliates/${id}`,
+    { method: "DELETE" },
+    { credentialProfile: "write" }
+  );
   if (!res) return { error: "SliceWP request failed" };
   if (!res.ok) {
     const text = await res.text().catch(() => "");
