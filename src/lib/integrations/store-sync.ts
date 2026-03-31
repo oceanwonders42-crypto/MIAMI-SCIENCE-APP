@@ -17,6 +17,7 @@ import {
   applyStoreReferralAttributedPayload,
 } from "@/lib/integrations/referral-order-attribution";
 import { compactLineItemsForMetadata } from "@/lib/order-line-items";
+import { grantPurchasePointsIfEligible } from "@/lib/rewards";
 
 /** Minimal shape for an order payload from the store (e.g. WooCommerce order webhook). */
 export interface StoreOrderPayload {
@@ -270,6 +271,13 @@ export async function processStoreOrderWebhook(
       orderExternalId: external_id,
       payload: parsed,
     });
+    await grantPurchasePointsIfEligible(supabase, {
+      userId: (row.user_id as string | null) ?? null,
+      orderExternalId: external_id,
+      orderStatus: row.status as string,
+      orderTotalCents: (row.total_cents as number | null) ?? null,
+      orderNumber: (row.order_number as string | null) ?? null,
+    });
     return { ok: true, orderId };
   }
 
@@ -301,6 +309,13 @@ export async function processStoreOrderWebhook(
     orderId,
     orderExternalId: external_id,
     payload: parsed,
+  });
+  await grantPurchasePointsIfEligible(supabase, {
+    userId: (row.user_id as string | null) ?? null,
+    orderExternalId: external_id,
+    orderStatus: row.status as string,
+    orderTotalCents: (row.total_cents as number | null) ?? null,
+    orderNumber: (row.order_number as string | null) ?? null,
   });
   return { ok: true, orderId };
 }

@@ -9,6 +9,7 @@ import { INTEGRATION_KEYS, upsertIntegrationSyncLog } from "@/lib/admin/integrat
 import { getWooCommerceConfig, fetchCustomers, fetchOrders } from "./woocommerce-client";
 import { normalizeEmail, upsertCustomerMapping } from "@/lib/customer-mapping";
 import { compactLineItemsForMetadata } from "@/lib/order-line-items";
+import { grantPurchasePointsIfEligible } from "@/lib/rewards";
 
 const PER_PAGE = 100;
 
@@ -202,7 +203,17 @@ export async function runWooCommerceBackfill(
           })
           .eq("id", existing.id);
         if (error) errors.push(`Order ${externalId} update: ${error.message}`);
-        else ordersUpserted += 1;
+        else {
+          ordersUpserted += 1;
+          const points = await grantPurchasePointsIfEligible(supabase, {
+            userId: row.user_id,
+            orderExternalId: row.external_id,
+            orderStatus: row.status,
+            orderTotalCents: row.total_cents,
+            orderNumber: row.order_number,
+          });
+          if (points.error) errors.push(`Order ${externalId} points: ${points.error.message}`);
+        }
       } else {
         const { error } = await supabase.from("orders").insert({
           external_id: row.external_id,
@@ -220,7 +231,17 @@ export async function runWooCommerceBackfill(
           metadata: row.metadata,
         });
         if (error) errors.push(`Order ${externalId} insert: ${error.message}`);
-        else ordersUpserted += 1;
+        else {
+          ordersUpserted += 1;
+          const points = await grantPurchasePointsIfEligible(supabase, {
+            userId: row.user_id,
+            orderExternalId: row.external_id,
+            orderStatus: row.status,
+            orderTotalCents: row.total_cents,
+            orderNumber: row.order_number,
+          });
+          if (points.error) errors.push(`Order ${externalId} points: ${points.error.message}`);
+        }
       }
     }
 

@@ -8,6 +8,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { getWooCommerceConfig, fetchOrderById } from "./woocommerce-client";
 import type { RawWooOrder } from "./woocommerce-client";
 import { compactLineItemsForMetadata } from "@/lib/order-line-items";
+import { grantPurchasePointsIfEligible } from "@/lib/rewards";
 
 export type SyncOrderResult = { ok: true; orderId: string } | { ok: false; error: string };
 
@@ -95,6 +96,13 @@ export async function syncWooOrderToApp(
       .select("id")
       .single();
     if (error) return { ok: false, error: error.message };
+    await grantPurchasePointsIfEligible(supabase, {
+      userId: row.user_id,
+      orderExternalId: row.external_id,
+      orderStatus: row.status,
+      orderTotalCents: row.total_cents,
+      orderNumber: row.order_number,
+    });
     return { ok: true, orderId: (updated as { id: string }).id };
   }
 
@@ -118,5 +126,12 @@ export async function syncWooOrderToApp(
     .select("id")
     .single();
   if (error) return { ok: false, error: error.message };
+  await grantPurchasePointsIfEligible(supabase, {
+    userId: row.user_id,
+    orderExternalId: row.external_id,
+    orderStatus: row.status,
+    orderTotalCents: row.total_cents,
+    orderNumber: row.order_number,
+  });
   return { ok: true, orderId: (inserted as { id: string }).id };
 }

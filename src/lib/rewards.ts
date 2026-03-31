@@ -108,6 +108,59 @@ export async function createLedgerEntry(
   return { error: error ? new Error(error.message) : null };
 }
 
+const QUALIFYING_PURCHASE_STATUSES = new Set(["processing", "completed"]);
+
+export function isQualifyingPurchaseStatus(status: string | null | undefined): boolean {
+  if (!status) return false;
+  return QUALIFYING_PURCHASE_STATUSES.has(status.trim().toLowerCase());
+}
+
+export function pointsForOrderTotalCents(totalCents: number | null | undefined): number {
+  if (!Number.isFinite(totalCents) || (totalCents ?? 0) <= 0) return 0;
+  return Math.floor((totalCents as number) / 100);
+}
+
+export async function grantPurchasePointsIfEligible(
+  supabase: SupabaseClient,
+  input: {
+    userId: string | null | undefined;
+    orderExternalId: string | null | undefined;
+    orderStatus: string | null | undefined;
+    orderTotalCents: number | null | undefined;
+    orderNumber?: string | null;
+  }
+): Promise<{ granted: boolean; error: Error | null }> {
+  const userId = input.userId?.trim();
+  const orderExternalId = input.orderExternalId?.trim();
+  if (!userId || !orderExternalId) return { granted: false, error: null };
+  if (!isQualifyingPurchaseStatus(input.orderStatus)) return { granted: false, error: null };
+
+  const points = pointsForOrderTotalCents(input.orderTotalCents);
+  if (points <= 0) return { granted: false, error: null };
+
+  const { data: existing, error: existingError } = await supabase
+    .from("reward_points_ledger")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("reference_type", "order_purchase")
+    .eq("reference_id", orderExternalId)
+    .limit(1)
+    .maybeSingle();
+  if (existingError) return { granted: false, error: new Error(existingError.message) };
+  if (existing?.id) return { granted: false, error: null };
+
+  const { error } = await createLedgerEntry(supabase, {
+    user_id: userId,
+    amount_delta: points,
+    reason: "purchase",
+    description: `Points from order ${input.orderNumber?.trim() || orderExternalId}`,
+    reference_type: "order_purchase",
+    reference_id: orderExternalId,
+  });
+  if (error) return { granted: false, error };
+  return { granted: true, error: null };
+}
+
 /** Parameters for atomic redemption via RPC. */
 export type RedeemPointsRpcParams = {
   userId: string;

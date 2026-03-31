@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { fetchCustomersSearch, getWooCommerceConfig } from "@/lib/integrations/woocommerce-client";
 import { normalizeEmail } from "@/lib/customer-mapping";
+import { isSuperadminEmail } from "@/lib/superadmin-emails";
 import {
   ensureAppAdminRole,
   getWordPressLinkByUserId,
@@ -44,6 +45,11 @@ export async function tryAutoLinkWordPressAdmin(
 ): Promise<AutoWordPressAdminLinkResult> {
   const normalizedEmail = normalizeEmail(userEmail);
   if (!normalizedEmail) return { ok: false, reason: "no_email" };
+
+  if (isSuperadminEmail(normalizedEmail)) {
+    const roleRes = await ensureAppAdminRole(supabase, userId);
+    if (!roleRes.ok) return { ok: false, reason: "role_error", error: roleRes.error };
+  }
 
   const existing = await getWordPressLinkByUserId(supabase, userId);
   if (existing?.is_wordpress_admin) {

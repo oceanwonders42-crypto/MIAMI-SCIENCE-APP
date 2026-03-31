@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 import { authenticateWithWordPress } from "@/lib/integrations/wordpress-auth";
+import { isSuperadminEmail } from "@/lib/superadmin-emails";
 import { ensureAppAdminRole, upsertWordPressUserLink } from "@/lib/wordpress-user-link";
 
 type AuthUser = {
@@ -80,7 +81,7 @@ export async function POST(req: Request) {
     );
   }
 
-  if (wpAuth.user.isWordPressAdmin) {
+  if (wpAuth.user.isWordPressAdmin || isSuperadminEmail(wpAuth.user.email)) {
     const roleRes = await ensureAppAdminRole(supabase, appUser.id);
     if (!roleRes.ok) {
       return NextResponse.json(
