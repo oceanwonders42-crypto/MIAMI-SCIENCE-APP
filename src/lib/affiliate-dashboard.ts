@@ -12,6 +12,7 @@ import {
   resolveSliceWPAffiliateId,
   syncSliceWPAffiliateStats,
   fetchSliceWPDashboardBundle,
+  SLICEWP_STATS_PERIOD,
 } from "@/lib/integrations/slicewp";
 import type { AffiliateExternalSyncPresentation } from "@/lib/integrations/affiliate-external-sync";
 
@@ -182,23 +183,47 @@ export async function loadAffiliateTabData(
 
     const bundle = await fetchSliceWPDashboardBundle(sliceId, 25);
     const m = bundle.metrics;
-    commissions = {
-      totalEarnedCents: m.totalEarnedCents,
-      monthEarnedCents: m.monthEarnedCents,
-      availablePayoutCents: m.availablePayoutCents,
-      referralUsesThisMonth: m.referralUsesThisMonth,
-      referralUsesAllTime: m.referralUsesAllTime,
-      dataSource: "slice",
-    };
-    referredOrders = bundle.recentOrders.map((o) => ({
-      id: o.id,
-      orderNumber: o.orderNumber,
-      orderTotalCents: o.orderTotalCents,
-      commissionCents: o.commissionCents,
-      createdAt: o.createdAt,
-      statusRaw: o.statusRaw,
-      displayStatus: o.displayStatus,
-    }));
+
+    const { data: sliceSyncRow } = await supabase
+      .from("affiliate_stats_cache")
+      .select("commission_cents, conversions")
+      .eq("user_id", userId)
+      .eq("period", SLICEWP_STATS_PERIOD)
+      .maybeSingle();
+    const cacheCents = sliceSyncRow?.commission_cents ?? 0;
+    const cacheConv = sliceSyncRow?.conversions ?? 0;
+    const sliceEmpty = m.totalEarnedCents === 0 && m.referralUsesAllTime === 0;
+    const cacheHasTotals = cacheCents > 0 || cacheConv > 0;
+
+    if (sliceEmpty && cacheHasTotals) {
+      commissions = {
+        totalEarnedCents: cacheCents,
+        monthEarnedCents: 0,
+        availablePayoutCents: cacheCents,
+        referralUsesThisMonth: 0,
+        referralUsesAllTime: cacheConv,
+        dataSource: "cache",
+      };
+      referredOrders = [];
+    } else {
+      commissions = {
+        totalEarnedCents: m.totalEarnedCents,
+        monthEarnedCents: m.monthEarnedCents,
+        availablePayoutCents: m.availablePayoutCents,
+        referralUsesThisMonth: m.referralUsesThisMonth,
+        referralUsesAllTime: m.referralUsesAllTime,
+        dataSource: "slice",
+      };
+      referredOrders = bundle.recentOrders.map((o) => ({
+        id: o.id,
+        orderNumber: o.orderNumber,
+        orderTotalCents: o.orderTotalCents,
+        commissionCents: o.commissionCents,
+        createdAt: o.createdAt,
+        statusRaw: o.statusRaw,
+        displayStatus: o.displayStatus,
+      }));
+    }
   } else {
     const cacheTotal = await sumCommissionAllCachePeriods(supabase, userId);
     const monthStart = monthStartUtcIso();
@@ -263,7 +288,15 @@ export async function getAffiliateReferralOrderCount(
     if (sliceId) {
       await syncSliceWPAffiliateStats(supabase, userId, sliceId);
       const bundle = await fetchSliceWPDashboardBundle(sliceId, 25);
-      return bundle.metrics.referralUsesAllTime;
+      const n = bundle.metrics.referralUsesAllTime;
+      if (n > 0) return n;
+      const { data: row } = await supabase
+        .from("affiliate_stats_cache")
+        .select("conversions")
+        .eq("user_id", userId)
+        .eq("period", SLICEWP_STATS_PERIOD)
+        .maybeSingle();
+      return row?.conversions ?? 0;
     }
   }
   return countReferredOrders(supabase, userId);

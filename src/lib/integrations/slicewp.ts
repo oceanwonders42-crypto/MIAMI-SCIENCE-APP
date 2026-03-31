@@ -623,6 +623,20 @@ export async function syncSliceWPAffiliateStats(
   const commissionViews = await fetchAllCommissionRowsForAffiliate(affiliateId, 20);
   const metrics = computeSliceWPCommissionMetrics(commissionViews);
 
+  if (commissionViews.length === 0) {
+    const { data: existing } = await supabase
+      .from("affiliate_stats_cache")
+      .select("commission_cents, conversions")
+      .eq("user_id", userId)
+      .eq("period", SLICEWP_STATS_PERIOD)
+      .maybeSingle();
+    const prevCents = existing?.commission_cents ?? 0;
+    const prevConv = existing?.conversions ?? 0;
+    if (prevCents > 0 || prevConv > 0) {
+      return;
+    }
+  }
+
   const { error } = await supabase.from("affiliate_stats_cache").upsert(
     {
       user_id: userId,
