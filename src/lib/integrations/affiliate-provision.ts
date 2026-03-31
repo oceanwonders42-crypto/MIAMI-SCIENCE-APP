@@ -55,6 +55,7 @@ function buildSliceCreatePayloadFull(
   return {
     email: em,
     user_email: em,
+    payment_email: em,
     status: "active",
     commission_rate: String(commission),
     commission: String(commission),
@@ -67,6 +68,7 @@ function buildSliceCreatePayloadMinimal(email: string): Record<string, unknown> 
   return {
     email: em,
     user_email: em,
+    payment_email: em,
     status: "active",
   };
 }
@@ -86,7 +88,9 @@ async function resolveSliceCreate(
     return { error: msg };
   }
   const id = minimal.id;
+  const em = email.trim().toLowerCase();
   const patch = await updateSliceWPAffiliate(id, {
+    payment_email: em,
     coupon_code: couponCode,
     commission_rate: String(commission),
     commission: String(commission),
@@ -164,6 +168,7 @@ export async function provisionAffiliateViaOnboarding(options: {
   const wooId = wooRes.data.id;
 
   const sliceLink = await updateSliceWPAffiliate(sliceId, {
+    payment_email: options.email.trim().toLowerCase(),
     coupon_code: norm.code,
     commission_rate: String(commission),
     commission: String(commission),
