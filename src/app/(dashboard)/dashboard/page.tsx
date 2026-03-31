@@ -1,6 +1,7 @@
 import { createServerClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/profile";
 import { getRole, isAffiliateOrAdmin } from "@/lib/auth";
+import { resolveAffiliateDashboardAccess } from "@/lib/affiliate-access";
 import { getWorkoutStats, getRecentWorkouts } from "@/lib/workouts";
 import { getSupplies } from "@/lib/supplies";
 import { getOrders } from "@/lib/orders";
@@ -31,7 +32,7 @@ export default async function DashboardPage() {
   } = await supabase.auth.getUser();
   const userId = user?.id ?? "";
   const role = await getRole(supabase, userId);
-  const showAffiliateLinks = isAffiliateOrAdmin(role);
+  const affiliateAccess = await resolveAffiliateDashboardAccess(supabase, userId, role);
   const checkInDateYmd = todayDateString();
 
   const [
@@ -107,7 +108,11 @@ export default async function DashboardPage() {
           variant="peek"
         />
 
-        <DashboardExploreGrid showAffiliate={showAffiliateLinks} announcements={announcements} />
+        <DashboardExploreGrid
+          showAffiliateProgram
+          showAffiliateCommunity={affiliateAccess.kind === "full" && isAffiliateOrAdmin(role)}
+          announcements={announcements}
+        />
 
         <Disclaimer compact className="text-center pt-2 text-zinc-600 text-[11px] leading-relaxed" />
       </div>

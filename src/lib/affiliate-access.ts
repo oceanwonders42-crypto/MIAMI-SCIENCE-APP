@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { UserRole } from "@/types";
+import type { AffiliateProfile, UserRole } from "@/types";
 import { getAffiliateProfile } from "@/lib/affiliates";
 
 /** Public unlock code for SliceWP + Woo onboarding (server-verified only). */
@@ -33,15 +33,45 @@ export function isAffiliateUnlockCodeValid(code: string | null | undefined): boo
 }
 
 export type AffiliateDashboardAccess =
-  | { kind: "full"; reason: "admin" | "slicewp_linked" }
+  | { kind: "full"; reason: "admin" | "onboarded" }
   | {
       kind: "locked";
-      reason: "customer_no_slice" | "pending_unlock_onboarding";
+      reason: "needs_onboarding";
     };
 
 /**
- * Backend source of truth for affiliate tab: admins always full; others need a persisted SliceWP id.
- * user_roles.affiliate alone is not sufficient (no client/UI faking).
+ * App affiliate program unlocked only after ULTRA + promo provisioning (or equivalent admin setup):
+ * SliceWP id, Woo coupon id, and promo code must all exist on the profile.
+ * SliceWP email cross-reference alone must not unlock (see bootstrapAffiliateIdentityFromSliceEmail disabled).
+ */
+export function hasCompletedAffiliateProgramOnboarding(
+  profile: AffiliateProfile | null
+): boolean {
+  if (!profile) return false;
+  const slice = profile.slicewp_affiliate_id?.trim();
+  const code = profile.coupon_code?.trim();
+  const woo = profile.woo_coupon_id;
+  if (!slice || !code) return false;
+  if (woo == null || !Number.isFinite(Number(woo)) || Number(woo) <= 0) return false;
+  return true;
+}
+
+/**
+ * When true, it is safe to attach a SliceWP affiliate id from an email match during sync
+ * (user already has app-issued promo + Woo coupon — e.g. repair missing slice id).
+ */
+export function hasAppAffiliateCouponPair(profile: AffiliateProfile | null): boolean {
+  if (!profile) return false;
+  const code = profile.coupon_code?.trim();
+  const woo = profile.woo_coupon_id;
+  return Boolean(
+    code && woo != null && Number.isFinite(Number(woo)) && Number(woo) > 0
+  );
+}
+
+/**
+ * Backend source of truth for the Affiliate tab: admins always full; others only after
+ * completed onboarding (not role alone, not SliceWP id alone).
  */
 export async function resolveAffiliateDashboardAccess(
   supabase: SupabaseClient,
@@ -53,12 +83,11 @@ export async function resolveAffiliateDashboardAccess(
   }
 
   const profile = await getAffiliateProfile(supabase, userId);
-  const sliceId = profile?.slicewp_affiliate_id?.trim();
-  if (sliceId) {
-    return { kind: "full", reason: "slicewp_linked" };
+  if (hasCompletedAffiliateProgramOnboarding(profile)) {
+    return { kind: "full", reason: "onboarded" };
   }
 
-  return { kind: "locked", reason: "customer_no_slice" };
+  return { kind: "locked", reason: "needs_onboarding" };
 }
 
 export function suggestAlternatePromoCode(base: string): string {

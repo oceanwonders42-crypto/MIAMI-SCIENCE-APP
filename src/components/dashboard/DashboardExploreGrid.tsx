@@ -11,10 +11,14 @@ type ExploreItem = {
 };
 
 export function DashboardExploreGrid({
-  showAffiliate,
+  showAffiliateProgram,
+  showAffiliateCommunity,
   announcements,
 }: {
-  showAffiliate: boolean;
+  /** Affiliate tab is visible to all logged-in users (locked or full dashboard). */
+  showAffiliateProgram: boolean;
+  /** Team chat room only for affiliates/admins who use the affiliate community. */
+  showAffiliateCommunity: boolean;
   announcements: Announcement[];
 }) {
   const items: ExploreItem[] = [
@@ -24,15 +28,15 @@ export function DashboardExploreGrid({
     { href: ROUTES.catalog, label: "Catalog", sub: "Products" },
     { href: ROUTES.orders, label: "Orders", sub: "History" },
   ];
-  if (showAffiliate) {
-    items.push(
-      {
-        href: `${ROUTES.community}?room=${encodeURIComponent(AFFILIATE_ROOM_SLUG)}`,
-        label: "Community",
-        sub: "Team chat",
-      },
-      { href: ROUTES.affiliate, label: "Affiliate", sub: "Dashboard" }
-    );
+  if (showAffiliateProgram) {
+    items.push({ href: ROUTES.affiliate, label: "Affiliate", sub: "Program" });
+  }
+  if (showAffiliateCommunity) {
+    items.push({
+      href: `${ROUTES.community}?room=${encodeURIComponent(AFFILIATE_ROOM_SLUG)}`,
+      label: "Community",
+      sub: "Team chat",
+    });
   }
   items.push(
     { href: ROUTES.account, label: "Account", sub: "Settings" },

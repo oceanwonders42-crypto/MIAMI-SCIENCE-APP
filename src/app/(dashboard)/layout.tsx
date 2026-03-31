@@ -11,7 +11,6 @@ import { getProfile, isProfileComplete } from "@/lib/profile";
 import { getCustomerMappingByUserId } from "@/lib/customer-mapping";
 import { tryAutoLinkCustomer } from "@/lib/integrations/auto-customer-link";
 import { tryAutoLinkWordPressAdmin } from "@/lib/integrations/auto-wordpress-admin-link";
-import { bootstrapAffiliateIdentityFromSliceEmail } from "@/lib/integrations/affiliate-identity-sync";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { AppNav } from "@/components/layout/AppNav";
 import { ROUTES } from "@/lib/constants";
@@ -65,20 +64,6 @@ export default async function DashboardLayout({
       await tryAutoLinkCustomer(serviceClient, user.id, user.email);
     } catch {
       // Service role env missing or auto-link failed — do not crash the layout
-    }
-  }
-
-  if (user.email) {
-    try {
-      const serviceClient = createServiceRoleClient();
-      await bootstrapAffiliateIdentityFromSliceEmail(
-        serviceClient,
-        user.id,
-        user.email,
-        role
-      );
-    } catch {
-      // Service role env missing or SliceWP errors — shell must stay usable
     }
   }
 

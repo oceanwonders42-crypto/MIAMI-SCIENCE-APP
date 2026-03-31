@@ -13,6 +13,7 @@ import {
   resolveSliceWPAffiliateId,
   fetchSliceWPAffiliatePatch,
 } from "@/lib/integrations/slicewp";
+import { hasAppAffiliateCouponPair } from "@/lib/affiliate-access";
 import {
   getWooCommerceConfig,
   fetchCouponsByCodeSearch,
@@ -99,6 +100,9 @@ export async function persistSliceAffiliateIdIfUniqueEmailMatch(
 ): Promise<{ ok: true } | { ok: false; reason: string }> {
   if (!isSliceWPSyncEnabled()) return { ok: false, reason: "slice_disabled" };
   if (profile.slicewp_affiliate_id?.trim()) return { ok: true };
+  if (!hasAppAffiliateCouponPair(profile)) {
+    return { ok: false, reason: "no_app_coupon_pair" };
+  }
 
   const { ids, apiError } = await findSliceWPAffiliateIdsByEmail(userEmail);
   if (apiError) {

@@ -2,6 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { createServerClient } from "@/lib/supabase/server";
+import { getRole } from "@/lib/auth";
+import { resolveAffiliateDashboardAccess } from "@/lib/affiliate-access";
 import { updateAffiliatePayoutByUserId } from "@/lib/affiliates";
 import { runAffiliateExternalSync } from "@/lib/integrations/affiliate-external-sync";
 import { ROUTES, SHOP_REFILL_URL } from "@/lib/constants";
@@ -22,6 +24,11 @@ export async function syncAffiliateExternalNowAction(): Promise<SyncAffiliateRes
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: "Not signed in" };
+  const role = await getRole(supabase, user.id);
+  const access = await resolveAffiliateDashboardAccess(supabase, user.id, role);
+  if (access.kind !== "full") {
+    return { ok: false, error: "Affiliate program is not unlocked for this account." };
+  }
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? SHOP_REFILL_URL;
   try {
     await runAffiliateExternalSync({

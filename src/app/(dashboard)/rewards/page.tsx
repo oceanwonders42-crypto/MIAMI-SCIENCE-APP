@@ -5,7 +5,8 @@ import {
   getLifetimeEarned,
   listRewardRedemptions,
 } from "@/lib/rewards";
-import { getRole, isAffiliateOrAdmin } from "@/lib/auth";
+import { getRole } from "@/lib/auth";
+import { resolveAffiliateDashboardAccess } from "@/lib/affiliate-access";
 import { getAffiliateReferralOrderCount } from "@/lib/affiliate-dashboard";
 import { Header } from "@/components/layout/Header";
 import { Card, CardContent } from "@/components/ui/Card";
@@ -26,7 +27,8 @@ export default async function RewardsPage() {
   const userId = user?.id ?? "";
 
   const role = await getRole(supabase, userId);
-  const showAffiliateRewards = isAffiliateOrAdmin(role);
+  const affiliateAccess = await resolveAffiliateDashboardAccess(supabase, userId, role);
+  const showAffiliateRewards = affiliateAccess.kind === "full";
 
   const [balance, lifetimeEarned, ledger, referralCount, redemptions] = await Promise.all([
     getRewardBalance(supabase, userId),
