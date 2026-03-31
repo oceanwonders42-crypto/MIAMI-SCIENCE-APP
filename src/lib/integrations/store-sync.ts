@@ -17,6 +17,7 @@ import {
   applyStoreReferralAttributedPayload,
 } from "@/lib/integrations/referral-order-attribution";
 import { compactLineItemsForMetadata } from "@/lib/order-line-items";
+import { applyRewardCouponUsageFromStoreOrder } from "@/lib/reward-coupon-lifecycle";
 import { grantPurchasePointsIfEligible } from "@/lib/rewards";
 
 /** Minimal shape for an order payload from the store (e.g. WooCommerce order webhook). */
@@ -44,8 +45,8 @@ export interface StoreOrderPayload {
   item_count?: number | null;
   line_items?: unknown[] | null;
   meta_data?: Array<{ key: string; value: string | number }> | null;
-  /** WooCommerce coupon lines */
-  coupon_lines?: Array<{ code?: string }> | null;
+  /** WooCommerce coupon lines (order payload includes codes applied at checkout). */
+  coupon_lines?: Array<{ code?: string; discount?: string }> | null;
   order_number?: string | number | null;
   [key: string]: unknown;
 }
@@ -278,6 +279,7 @@ export async function processStoreOrderWebhook(
       orderTotalCents: (row.total_cents as number | null) ?? null,
       orderNumber: (row.order_number as string | null) ?? null,
     });
+    await applyRewardCouponUsageFromStoreOrder(supabase, parsed);
     return { ok: true, orderId };
   }
 
@@ -317,6 +319,7 @@ export async function processStoreOrderWebhook(
     orderTotalCents: (row.total_cents as number | null) ?? null,
     orderNumber: (row.order_number as string | null) ?? null,
   });
+  await applyRewardCouponUsageFromStoreOrder(supabase, parsed);
   return { ok: true, orderId };
 }
 

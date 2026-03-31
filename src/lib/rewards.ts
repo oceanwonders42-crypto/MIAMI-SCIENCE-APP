@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { RewardPointsLedgerEntry } from "@/types";
+import type { RewardPointsLedgerEntry, RewardRedemption } from "@/types";
 
 export async function getRewardLedger(
   supabase: SupabaseClient,
@@ -59,7 +59,8 @@ export function getLedgerEntryType(
   entry: RewardPointsLedgerEntry
 ): "earned" | "adjusted" | "redeemed" {
   if (entry.amount_delta > 0) return "earned";
-  if (entry.reason?.toLowerCase().includes("redeem")) return "redeemed";
+  const r = entry.reason?.toLowerCase() ?? "";
+  if (r.includes("redeem") && !r.includes("refund")) return "redeemed";
   return "adjusted";
 }
 
@@ -120,6 +121,12 @@ export function pointsForOrderTotalCents(totalCents: number | null | undefined):
   return Math.floor((totalCents as number) / 100);
 }
 
+/**
+ * Purchase points earning:
+ * Uses the WooCommerce order `total` as synced into `orders.total_cents` (dollars × 100).
+ * That total is the order’s paid/captured amount as reported by WooCommerce for the order.
+ * Rule: **1 point per $1** → `floor(total_cents / 100)` points, idempotent per Woo order id.
+ */
 export async function grantPurchasePointsIfEligible(
   supabase: SupabaseClient,
   input: {
@@ -168,6 +175,8 @@ export type RedeemPointsRpcParams = {
   points: number;
   reason: string;
   description?: string | null;
+  /** Unique per redemption (ledger reference_id); required for multiple redeems of same catalog id. */
+  referenceId?: string | null;
 };
 
 /**
@@ -185,6 +194,23 @@ export async function redeemPointsRpc(
     p_points: params.points,
     p_reason: params.reason,
     p_description: params.description ?? null,
+    p_reference_id: params.referenceId ?? null,
   });
   return { error: error ? new Error(error.message) : null };
+}
+
+export type RewardRedemptionRow = RewardRedemption;
+
+export async function listRewardRedemptions(
+  supabase: SupabaseClient,
+  userId: string
+): Promise<RewardRedemption[]> {
+  const { data, error } = await supabase
+    .from("reward_redemptions")
+    .select("*")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false })
+    .limit(50);
+  if (error) return [];
+  return (data ?? []) as RewardRedemption[];
 }

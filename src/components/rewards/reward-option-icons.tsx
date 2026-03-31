@@ -1,6 +1,5 @@
 import type { LucideIcon } from "lucide-react";
 import {
-  Crown,
   Gift,
   PercentCircle,
   Tag,
@@ -16,7 +15,6 @@ const ICONS: Record<RedemptionOptionId, LucideIcon> = {
   off_15_next: PercentCircle,
   free_sample: Gift,
   "25off": TicketPercent,
-  vip_early: Crown,
   off_30_6months: BadgePercent,
 };
 

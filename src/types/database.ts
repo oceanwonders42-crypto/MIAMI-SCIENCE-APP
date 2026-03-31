@@ -266,6 +266,22 @@ export interface RewardPointsLedgerEntry {
   created_at: string;
 }
 
+/** App-issued reward coupons (WooCommerce); see migration 00052. */
+export interface RewardRedemption {
+  id: string;
+  user_id: string;
+  redemption_option_id: string;
+  redemption_reference_id: string;
+  points_spent: number;
+  coupon_code: string;
+  woo_coupon_id: number;
+  status: "issued" | "used" | "invalidated";
+  used_order_external_id: string | null;
+  created_at: string;
+  used_at: string | null;
+  invalidated_at: string | null;
+}
+
 export interface AffiliateProfile {
   id: string;
   user_id: string;

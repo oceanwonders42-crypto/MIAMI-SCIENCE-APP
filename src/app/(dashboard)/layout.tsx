@@ -30,6 +30,12 @@ export default async function DashboardLayout({
   const profile = await getProfile(supabase, user.id);
   if (!isProfileComplete(profile)) redirect(ROUTES.onboarding);
 
+  try {
+    await supabase.rpc("claim_signup_bonus");
+  } catch {
+    /* Idempotent; ignore if RPC missing */
+  }
+
   if (user.email) {
     try {
       const serviceClient = createServiceRoleClient();

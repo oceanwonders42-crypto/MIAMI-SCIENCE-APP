@@ -22,6 +22,7 @@ export type {
   WordPressUserMatchSource,
   Shipment,
   RewardPointsLedgerEntry,
+  RewardRedemption,
   AffiliateProfile,
   AffiliateStatsCache,
   ChatRoom,

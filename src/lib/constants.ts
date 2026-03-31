@@ -44,43 +44,67 @@ export const WORKOUT_TYPES = [
   "Other",
 ] as const;
 
-/** Fixed redemption options. Points are deducted from balance via `redeem_reward_points` RPC. */
-export const REDEMPTION_OPTIONS = [
+/** WooCommerce coupon shape for each reward (one-time % / $ / free shipping). */
+export type RedemptionWooSpec =
+  | { kind: "percent"; amountPercent: number; expiresInMonths?: number; limitUsageToXItems?: number }
+  | { kind: "fixed_cart"; amountDollars: number; expiresInMonths?: number }
+  | { kind: "free_shipping" };
+
+export type RedemptionOptionId =
+  | "free_shipping"
+  | "10off"
+  | "off_15_next"
+  | "free_sample"
+  | "25off"
+  | "off_30_6months";
+
+export type RedemptionOption = {
+  id: RedemptionOptionId;
+  points: number;
+  label: string;
+  description: string;
+  woo: RedemptionWooSpec;
+};
+
+/**
+ * Fixed redemption catalog. Redeeming deducts points via `redeem_reward_points` and creates a
+ * unique one-time WooCommerce coupon (server-side).
+ */
+export const REDEMPTION_OPTIONS: readonly RedemptionOption[] = [
   {
     id: "free_shipping",
     points: 50,
     label: "Free shipping on next order",
     description: "Waive standard shipping on your next qualifying order.",
+    woo: { kind: "free_shipping" },
   },
   {
     id: "10off",
     points: 100,
     label: "$10 off next order",
     description: "Redeem for a discount on your next purchase.",
+    woo: { kind: "fixed_cart", amountDollars: 10 },
   },
   {
     id: "off_15_next",
     points: 150,
     label: "15% off next order",
     description: "Percentage discount applied to your next order subtotal.",
+    woo: { kind: "percent", amountPercent: 15 },
   },
   {
     id: "free_sample",
     points: 200,
     label: "Free product sample",
     description: "Complimentary sample added to your next shipment (subject to availability).",
+    woo: { kind: "percent", amountPercent: 100, limitUsageToXItems: 1 },
   },
   {
     id: "25off",
     points: 250,
     label: "$25 off next order",
     description: "Redeem for a larger discount on your next purchase.",
-  },
-  {
-    id: "vip_early",
-    points: 300,
-    label: "VIP early access to new products",
-    description: "Get early access when new products drop.",
+    woo: { kind: "fixed_cart", amountDollars: 25 },
   },
   {
     id: "off_30_6months",
@@ -88,10 +112,9 @@ export const REDEMPTION_OPTIONS = [
     label: "30% off all orders for 6 months",
     description:
       "Redeem for 30% off all qualifying orders for six months from redemption (program terms apply).",
+    woo: { kind: "percent", amountPercent: 30, expiresInMonths: 6 },
   },
-] as const;
-
-export type RedemptionOptionId = (typeof REDEMPTION_OPTIONS)[number]["id"];
+];
 
 export const ROUTES = {
   home: "/",

@@ -16,11 +16,11 @@ export function RedemptionBlock({ balance }: RedemptionBlockProps) {
   const router = useRouter();
   const [loadingId, setLoadingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState(false);
+  const [successCode, setSuccessCode] = useState<string | null>(null);
 
   async function handleRedeem(optionId: string) {
     setError(null);
-    setSuccess(false);
+    setSuccessCode(null);
     setLoadingId(optionId);
     const result = await redeemPointsAction(optionId);
     setLoadingId(null);
@@ -28,8 +28,16 @@ export function RedemptionBlock({ balance }: RedemptionBlockProps) {
       setError(result.error);
       return;
     }
-    setSuccess(true);
+    setSuccessCode(result.couponCode);
     router.refresh();
+  }
+
+  async function copyCode(code: string) {
+    try {
+      await navigator.clipboard.writeText(code);
+    } catch {
+      setError("Could not copy — select the code manually.");
+    }
   }
 
   return (
@@ -43,11 +51,25 @@ export function RedemptionBlock({ balance }: RedemptionBlockProps) {
       </CardHeader>
       <CardContent className="space-y-4">
         {error && <p className="text-sm text-red-400">{error}</p>}
-        {success && (
-          <p className="text-sm text-emerald-400">
-            Redemption recorded. Your perk will be applied at checkout or sent by email — contact
-            support if you have questions.
-          </p>
+        {successCode && (
+          <div className="rounded-lg border border-emerald-500/40 bg-emerald-950/30 px-3 py-3 text-sm space-y-2">
+            <p className="text-emerald-300 font-medium">Your one-time coupon code</p>
+            <div className="flex flex-wrap items-center gap-2">
+              <code className="font-mono text-base font-semibold text-zinc-100 tracking-wide">
+                {successCode}
+              </code>
+              <button
+                type="button"
+                onClick={() => copyCode(successCode)}
+                className="rounded-md bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold px-3 py-1.5"
+              >
+                Copy
+              </button>
+            </div>
+            <p className="text-xs text-zinc-500">
+              Paste at checkout on mia-science.com. Each code works once; it is removed after use.
+            </p>
+          </div>
         )}
         <ul className="space-y-4">
           {REDEMPTION_OPTIONS.map((opt) => {
@@ -153,7 +175,7 @@ export function RedemptionBlock({ balance }: RedemptionBlockProps) {
           })}
         </ul>
         <p className="text-xs text-zinc-500">
-          Redemptions are logged below. Contact Miami Science support for codes or checkout help.
+          The store creates your one-time coupon first; points are deducted only after that succeeds.
         </p>
       </CardContent>
     </Card>

@@ -89,6 +89,7 @@ export interface RawWooOrder {
   customer_id?: number;
   billing?: { email?: string } | null;
   line_items?: Array<{ name?: string; quantity?: number; product_id?: number }>;
+  coupon_lines?: Array<{ code?: string }>;
   [key: string]: unknown;
 }
 
@@ -315,6 +316,25 @@ export function pickCouponMatchingCode(
     if (ccode === w) return c;
   }
   return null;
+}
+
+/** Create a one-time WooCommerce coupon (server-only). */
+export async function createWooCommerceCoupon(
+  config: WooCommerceConfig,
+  body: Record<string, unknown>
+): Promise<ApiResult<RawWooCoupon>> {
+  return request<RawWooCoupon>(config, "POST", "/coupons", undefined, body);
+}
+
+/** Permanently delete a WooCommerce coupon after it has been used or to roll back a failed redemption. */
+export async function deleteWooCommerceCoupon(
+  config: WooCommerceConfig,
+  couponId: number
+): Promise<ApiResult<unknown>> {
+  if (!Number.isInteger(couponId) || couponId < 1) {
+    return { ok: false, error: "Invalid coupon id" };
+  }
+  return request<unknown>(config, "DELETE", `/coupons/${couponId}`, { force: "true" });
 }
 
 /**

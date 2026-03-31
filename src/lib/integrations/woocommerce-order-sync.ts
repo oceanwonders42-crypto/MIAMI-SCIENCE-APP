@@ -8,6 +8,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { getWooCommerceConfig, fetchOrderById } from "./woocommerce-client";
 import type { RawWooOrder } from "./woocommerce-client";
 import { compactLineItemsForMetadata } from "@/lib/order-line-items";
+import { applyRewardCouponUsageFromStoreOrder } from "@/lib/reward-coupon-lifecycle";
 import { grantPurchasePointsIfEligible } from "@/lib/rewards";
 
 export type SyncOrderResult = { ok: true; orderId: string } | { ok: false; error: string };
@@ -103,6 +104,11 @@ export async function syncWooOrderToApp(
       orderTotalCents: row.total_cents,
       orderNumber: row.order_number,
     });
+    await applyRewardCouponUsageFromStoreOrder(supabase, {
+      id: o.id,
+      status: row.status,
+      coupon_lines: o.coupon_lines ?? null,
+    });
     return { ok: true, orderId: (updated as { id: string }).id };
   }
 
@@ -132,6 +138,11 @@ export async function syncWooOrderToApp(
     orderStatus: row.status,
     orderTotalCents: row.total_cents,
     orderNumber: row.order_number,
+  });
+  await applyRewardCouponUsageFromStoreOrder(supabase, {
+    id: o.id,
+    status: row.status,
+    coupon_lines: o.coupon_lines ?? null,
   });
   return { ok: true, orderId: (inserted as { id: string }).id };
 }

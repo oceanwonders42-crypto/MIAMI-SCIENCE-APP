@@ -3,6 +3,7 @@ import {
   getRewardBalance,
   getRewardLedger,
   getLifetimeEarned,
+  listRewardRedemptions,
 } from "@/lib/rewards";
 import { getRole, isAffiliateOrAdmin } from "@/lib/auth";
 import { getAffiliateReferralOrderCount } from "@/lib/affiliate-dashboard";
@@ -14,6 +15,7 @@ import { RedemptionBlock } from "./RedemptionBlock";
 import { HowToEarnSection } from "@/components/rewards/HowToEarnSection";
 import { AffiliateRewardsSection } from "@/components/rewards/AffiliateRewardsSection";
 import { RewardsHistoryTimeline } from "@/components/rewards/RewardsHistoryTimeline";
+import { IssuedCouponsPanel } from "@/components/rewards/IssuedCouponsPanel";
 import { Disclaimer } from "@/components/ui/Disclaimer";
 
 export default async function RewardsPage() {
@@ -26,11 +28,12 @@ export default async function RewardsPage() {
   const role = await getRole(supabase, userId);
   const showAffiliateRewards = isAffiliateOrAdmin(role);
 
-  const [balance, lifetimeEarned, ledger, referralCount] = await Promise.all([
+  const [balance, lifetimeEarned, ledger, referralCount, redemptions] = await Promise.all([
     getRewardBalance(supabase, userId),
     getLifetimeEarned(supabase, userId),
     getRewardLedger(supabase, userId, 60),
     showAffiliateRewards ? getAffiliateReferralOrderCount(supabase, userId) : Promise.resolve(0),
+    userId ? listRewardRedemptions(supabase, userId) : Promise.resolve([]),
   ]);
 
   return (
@@ -60,6 +63,10 @@ export default async function RewardsPage() {
 
         <Section title="Redeem rewards">
           <RedemptionBlock balance={balance} />
+        </Section>
+
+        <Section title="Issued coupons">
+          <IssuedCouponsPanel rows={redemptions} />
         </Section>
 
         {showAffiliateRewards && <AffiliateRewardsSection referralCount={referralCount} />}
