@@ -98,6 +98,8 @@ export interface RawWooCustomer {
   email?: string;
   first_name?: string;
   last_name?: string;
+  /** WordPress role as returned by Woo customers endpoint when available. */
+  role?: string;
   [key: string]: unknown;
 }
 

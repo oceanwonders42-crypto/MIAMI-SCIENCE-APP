@@ -208,6 +208,21 @@ export interface CustomerMapping {
   created_at: string;
 }
 
+export type WordPressUserMatchSource = "auto_email" | "woocommerce_customer" | "manual";
+
+export interface WordPressUserLink {
+  id: string;
+  user_id: string;
+  wordpress_user_id: number;
+  wordpress_email: string;
+  wordpress_role: string | null;
+  is_wordpress_admin: boolean;
+  match_source: WordPressUserMatchSource;
+  last_seen_at: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface Order {
   id: string;
   user_id: string | null;

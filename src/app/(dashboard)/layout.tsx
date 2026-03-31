@@ -10,6 +10,7 @@ import {
 import { getProfile, isProfileComplete } from "@/lib/profile";
 import { getCustomerMappingByUserId } from "@/lib/customer-mapping";
 import { tryAutoLinkCustomer } from "@/lib/integrations/auto-customer-link";
+import { tryAutoLinkWordPressAdmin } from "@/lib/integrations/auto-wordpress-admin-link";
 import { getAffiliateProfile } from "@/lib/affiliates";
 import { persistSliceAffiliateIdIfUniqueEmailMatch } from "@/lib/integrations/affiliate-external-sync";
 import { Sidebar } from "@/components/layout/Sidebar";
@@ -28,6 +29,16 @@ export default async function DashboardLayout({
   if (!user) redirect(ROUTES.login);
   const profile = await getProfile(supabase, user.id);
   if (!isProfileComplete(profile)) redirect(ROUTES.onboarding);
+
+  if (user.email) {
+    try {
+      const serviceClient = createServiceRoleClient();
+      await tryAutoLinkWordPressAdmin(serviceClient, user.id, user.email);
+    } catch {
+      // Service role env missing or sync failed — do not break app shell
+    }
+  }
+
   const role = await getRole(supabase, user.id);
 
   let affiliateChatUnread = 0;

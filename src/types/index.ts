@@ -18,6 +18,8 @@ export type {
   Order,
   CustomerMapping,
   CustomerMappingMatchSource,
+  WordPressUserLink,
+  WordPressUserMatchSource,
   Shipment,
   RewardPointsLedgerEntry,
   AffiliateProfile,
