@@ -86,6 +86,16 @@ export default async function AdminPage() {
                 </CardContent>
               </Card>
             </Link>
+            <Link href={ROUTES.adminAffiliateProgram}>
+              <Card className="hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors h-full">
+                <CardHeader>
+                  <CardTitle>Affiliate program defaults</CardTitle>
+                </CardHeader>
+                <CardContent className="text-sm text-zinc-600 dark:text-zinc-400">
+                  Default coupon discount % and commission % for onboarding and new affiliates.
+                </CardContent>
+              </Card>
+            </Link>
             <Link href="/admin/moderation">
               <Card className="hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors h-full">
                 <CardHeader>

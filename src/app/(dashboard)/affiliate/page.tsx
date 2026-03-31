@@ -1,7 +1,10 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createServerClient } from "@/lib/supabase/server";
-import { getRole, isAffiliateOrAdmin } from "@/lib/auth";
+import { getRole } from "@/lib/auth";
+import { resolveAffiliateDashboardAccess } from "@/lib/affiliate-access";
+import { getAffiliateProgramSettings } from "@/lib/affiliate-program-settings";
+import { AffiliateLockedExperience } from "@/components/affiliate/AffiliateLockedExperience";
 import { Header } from "@/components/layout/Header";
 import { Card, CardContent } from "@/components/ui/Card";
 import { Section } from "@/components/ui/Section";
@@ -12,6 +15,7 @@ import { AffiliateReferralHero } from "@/components/affiliate/AffiliateReferralH
 import { AffiliateFreeProductUnlock } from "@/components/affiliate/AffiliateFreeProductUnlock";
 import { AffiliatePayoutForm } from "@/components/affiliate/AffiliatePayoutForm";
 import { AffiliateSyncNowButton } from "@/components/affiliate/AffiliateSyncNowButton";
+import { BrandAtmosphereStrip } from "@/components/brand/BrandAtmosphereStrip";
 import { cn } from "@/lib/utils";
 import type { ReferredOrderView } from "@/lib/integrations/affiliate-provider";
 import type { AffiliateConnectionBanner } from "@/lib/affiliate-dashboard";
@@ -134,7 +138,28 @@ export default async function AffiliatePage() {
   } = await supabase.auth.getUser();
   if (!user) redirect(ROUTES.login);
   const role = await getRole(supabase, user.id);
-  if (!isAffiliateOrAdmin(role)) redirect(ROUTES.dashboard);
+  const access = await resolveAffiliateDashboardAccess(supabase, user.id, role);
+
+  if (access.kind === "locked") {
+    const { data: obSession } = await supabase
+      .from("affiliate_onboarding_sessions")
+      .select("user_id")
+      .eq("user_id", user.id)
+      .maybeSingle();
+    const settings = await getAffiliateProgramSettings(supabase);
+    return (
+      <>
+        <Header title="Affiliate" subtitle="Unlock program access" />
+        <BrandAtmosphereStrip variant="scienceShore" className="h-[4.25rem] md:h-24" overlay="soft" />
+        <AffiliateLockedExperience
+          initialStep={obSession ? "promo" : "code"}
+          programCouponDiscountPercent={Number(settings.default_coupon_discount_percent)}
+          programCommissionPercent={Number(settings.default_commission_percent)}
+        />
+      </>
+    );
+  }
+
   const isAdmin = role === "admin";
 
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? SHOP_REFILL_URL;
@@ -152,6 +177,7 @@ export default async function AffiliatePage() {
   return (
     <>
       <Header title="Affiliate" subtitle="Commissions, referrals & payouts" />
+      <BrandAtmosphereStrip variant="scienceShore" className="h-[4.25rem] md:h-24" overlay="soft" />
       <div className="px-4 md:px-6 space-y-8 pb-10">
         <SliceWPStatusBanner
           connection={connection}

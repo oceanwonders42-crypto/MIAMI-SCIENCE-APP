@@ -4,10 +4,13 @@ import { createServerClient } from "@/lib/supabase/server";
 import { getRole } from "@/lib/auth";
 import {
   createAffiliateProfile,
+  getAffiliateProfileById,
   updateAffiliateProfile,
   type AffiliateProfileInsert,
   type AffiliateProfileUpdate,
 } from "@/lib/affiliates";
+import { pushAffiliatePricingToExternal } from "@/lib/integrations/affiliate-admin-sync";
+import type { AffiliateProfile } from "@/types";
 import { revalidatePath } from "next/cache";
 
 export async function createAffiliateAction(
@@ -22,10 +25,7 @@ export async function createAffiliateAction(
   if (role !== "admin") return { success: false, error: "Admin only" };
 
   const { set_role_affiliate, ...insert } = form;
-  const { data: profile, error: createError } = await createAffiliateProfile(
-    supabase,
-    insert
-  );
+  const { error: createError } = await createAffiliateProfile(supabase, insert);
   if (createError) return { success: false, error: createError.message };
 
   if (set_role_affiliate) {
@@ -54,6 +54,27 @@ export async function updateAffiliateAction(
 
   const { error } = await updateAffiliateProfile(supabase, profileId, form);
   if (error) return { success: false, error: error.message };
+
+  const pricingTouched =
+    form.coupon_discount_percent !== undefined || form.commission_percent !== undefined;
+  const fresh = await getAffiliateProfileById(supabase, profileId);
+  if (
+    fresh &&
+    pricingTouched &&
+    (fresh.slicewp_affiliate_id?.trim() || fresh.woo_coupon_id != null)
+  ) {
+    const push = await pushAffiliatePricingToExternal(
+      supabase,
+      fresh as AffiliateProfile
+    );
+    if ("error" in push) {
+      return {
+        success: false,
+        error: `Profile saved but store sync failed: ${push.error}`,
+      };
+    }
+  }
+
   revalidatePath("/admin/affiliates");
   revalidatePath("/admin");
   revalidatePath("/affiliate");

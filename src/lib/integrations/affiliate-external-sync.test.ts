@@ -20,6 +20,8 @@ function baseProfile(over: Partial<AffiliateProfile> = {}): AffiliateProfile {
     affiliate_external_synced_at: null,
     affiliate_external_sync_error: null,
     woo_coupon_id: null,
+    coupon_discount_percent: null,
+    commission_percent: null,
     status: "active",
     created_at: "2026-01-01T00:00:00.000Z",
     updated_at: "2026-01-01T00:00:00.000Z",

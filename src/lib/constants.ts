@@ -147,6 +147,7 @@ export const ROUTES = {
   adminIntegrations: "/admin/integrations",
   adminAnnouncements: "/admin/announcements",
   adminRewards: "/admin/rewards",
+  adminAffiliateProgram: "/admin/affiliate-program",
 } as const;
 
 /** Store order history / account (WooCommerce my-account). Use for payment handoff. */

@@ -5,7 +5,7 @@ import { getRole } from "@/lib/auth";
 import { getAllAffiliateProfiles } from "@/lib/affiliates";
 import { getProfilesByUserIds } from "@/lib/profile";
 import { Header } from "@/components/layout/Header";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
+import { Card, CardContent } from "@/components/ui/Card";
 import { Section } from "@/components/ui/Section";
 import { Badge } from "@/components/ui/Badge";
 import { AffiliateForm } from "./AffiliateForm";
@@ -53,14 +53,20 @@ export default async function AdminAffiliatesPage() {
                   <li key={p.id}>
                     <Card>
                       <CardContent className="py-3 flex flex-wrap items-center justify-between gap-2">
-                        <div>
-                          <span className="font-medium">{display}</span>
-                          <span className="text-zinc-500 dark:text-zinc-400 text-sm ml-2">
-                            {p.referral_code}
-                          </span>
-                          <Badge variant="outline" className="ml-2">
-                            {p.status}
-                          </Badge>
+                        <div className="min-w-0 space-y-0.5">
+                          <div>
+                            <span className="font-medium">{display}</span>
+                            <span className="text-zinc-500 dark:text-zinc-400 text-sm ml-2">
+                              ref: {p.referral_code}
+                            </span>
+                            <Badge variant="outline" className="ml-2">
+                              {p.status}
+                            </Badge>
+                          </div>
+                          <p className="text-xs text-zinc-500 dark:text-zinc-400 font-mono truncate">
+                            promo: {p.coupon_code ?? "—"} · SliceWP:{" "}
+                            {p.slicewp_affiliate_id ?? "—"} · Woo coupon id: {p.woo_coupon_id ?? "—"}
+                          </p>
                         </div>
                         <Link
                           href={`/admin/affiliates/${p.id}/edit`}

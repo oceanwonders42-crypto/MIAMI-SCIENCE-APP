@@ -11,8 +11,7 @@ import { getProfile, isProfileComplete } from "@/lib/profile";
 import { getCustomerMappingByUserId } from "@/lib/customer-mapping";
 import { tryAutoLinkCustomer } from "@/lib/integrations/auto-customer-link";
 import { tryAutoLinkWordPressAdmin } from "@/lib/integrations/auto-wordpress-admin-link";
-import { getAffiliateProfile } from "@/lib/affiliates";
-import { persistSliceAffiliateIdIfUniqueEmailMatch } from "@/lib/integrations/affiliate-external-sync";
+import { bootstrapAffiliateIdentityFromSliceEmail } from "@/lib/integrations/affiliate-identity-sync";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { AppNav } from "@/components/layout/AppNav";
 import { ROUTES } from "@/lib/constants";
@@ -69,12 +68,17 @@ export default async function DashboardLayout({
     }
   }
 
-  if (isAffiliateOrAdmin(role) && user.email) {
+  if (user.email) {
     try {
-      const aff = await getAffiliateProfile(supabase, user.id);
-      if (aff) await persistSliceAffiliateIdIfUniqueEmailMatch(supabase, user.email, aff);
+      const serviceClient = createServiceRoleClient();
+      await bootstrapAffiliateIdentityFromSliceEmail(
+        serviceClient,
+        user.id,
+        user.email,
+        role
+      );
     } catch {
-      // SliceWP or DB errors must not break dashboard shell
+      // Service role env missing or SliceWP errors — shell must stay usable
     }
   }
 

@@ -19,7 +19,7 @@ const MAIN_NAV: { href: string; label: string; roles?: UserRole[] }[] = [
   { href: ROUTES.catalog, label: "Catalog" },
   { href: ROUTES.orders, label: "Orders" },
   { href: ROUTES.rewards, label: "Rewards" },
-  { href: ROUTES.affiliate, label: "Affiliate", roles: ["affiliate", "admin"] },
+  { href: ROUTES.affiliate, label: "Affiliate" },
   /** Same destination as bottom “Chat” and Explore — avoids wrong default room and fixes active state. */
   { href: COMMUNITY_AFFILIATE_HREF, label: "Community", roles: ["affiliate", "admin"] },
   { href: ROUTES.help, label: "Help" },

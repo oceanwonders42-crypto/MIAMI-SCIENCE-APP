@@ -301,8 +301,20 @@ export interface AffiliateProfile {
   affiliate_external_sync_error: string | null;
   /** WooCommerce coupon id after REST verification. */
   woo_coupon_id: number | null;
+  /** Woo coupon % for this affiliate; null → program default. */
+  coupon_discount_percent: number | null;
+  /** Commission % mirrored to SliceWP when supported; null → program default. */
+  commission_percent: number | null;
   status: "active" | "paused" | "suspended";
   created_at: string;
+  updated_at: string;
+}
+
+/** Single-row program defaults (see migration 00053). */
+export interface AffiliateProgramSettings {
+  id: number;
+  default_coupon_discount_percent: number;
+  default_commission_percent: number;
   updated_at: string;
 }
 

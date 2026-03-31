@@ -582,6 +582,76 @@ export async function fetchSliceWPAffiliateProfile(
   return null;
 }
 
+/**
+ * Create affiliate via SliceWP REST (requires Write API key).
+ * Payload shape may vary by SliceWP version; caller supplies known-safe fields.
+ */
+export async function createSliceWPAffiliate(
+  payload: Record<string, unknown>
+): Promise<{ id: string } | { error: string; status?: number }> {
+  if (!isSliceWPSyncEnabled()) return { error: "SliceWP not configured" };
+  const res = await slicewpFetch("/affiliates", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+  if (!res) return { error: "SliceWP request failed" };
+  const json: unknown = await res.json().catch(() => null);
+  if (!res.ok) {
+    const msg =
+      typeof json === "object" && json && "message" in json
+        ? String((json as { message: unknown }).message)
+        : `HTTP ${res.status}`;
+    return { error: msg, status: res.status };
+  }
+  const row = normalizeSliceWPSingleAffiliatePayload(json);
+  if (!row) return { error: "SliceWP create returned empty payload" };
+  const id = pickString(row, ["id"]) ?? (row.id != null ? String(row.id) : "");
+  if (!id) return { error: "SliceWP create returned no affiliate id" };
+  return { id };
+}
+
+/**
+ * Update affiliate (commission, coupon linkage, etc.). Tries POST then PUT.
+ */
+export async function updateSliceWPAffiliate(
+  affiliateId: string,
+  payload: Record<string, unknown>
+): Promise<{ ok: true } | { error: string; status?: number }> {
+  if (!isSliceWPSyncEnabled()) return { error: "SliceWP not configured" };
+  const id = encodeURIComponent(affiliateId);
+  const tryPost = await slicewpFetch(`/affiliates/${id}`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+  if (tryPost?.ok) return { ok: true };
+  const tryPut = await slicewpFetch(`/affiliates/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  });
+  if (tryPut?.ok) return { ok: true };
+  const res = tryPut ?? tryPost;
+  const json: unknown = await res?.json().catch(() => null);
+  const msg =
+    typeof json === "object" && json && "message" in json
+      ? String((json as { message: unknown }).message)
+      : `HTTP ${res?.status ?? "?"}`;
+  return { error: msg, status: res?.status };
+}
+
+export async function deleteSliceWPAffiliate(
+  affiliateId: string
+): Promise<{ ok: true } | { error: string }> {
+  if (!isSliceWPSyncEnabled()) return { error: "SliceWP not configured" };
+  const id = encodeURIComponent(affiliateId);
+  const res = await slicewpFetch(`/affiliates/${id}`, { method: "DELETE" });
+  if (!res) return { error: "SliceWP request failed" };
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    return { error: text || `HTTP ${res.status}` };
+  }
+  return { ok: true };
+}
+
 /** Admin diagnostics: verify SliceWP REST responds (no payload secrets logged). */
 export async function checkSliceWPConnectivity(): Promise<{
   ok: boolean;

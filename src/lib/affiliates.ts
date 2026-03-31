@@ -113,6 +113,8 @@ export type AffiliateProfileUpdate = Partial<
     | "affiliate_external_synced_at"
     | "affiliate_external_sync_error"
     | "woo_coupon_id"
+    | "coupon_discount_percent"
+    | "commission_percent"
   >
 >;
 

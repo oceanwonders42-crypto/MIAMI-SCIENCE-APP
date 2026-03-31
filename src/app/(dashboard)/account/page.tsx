@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createServerClient } from "@/lib/supabase/server";
-import { getRole, isAffiliateOrAdmin } from "@/lib/auth";
+import { getRole } from "@/lib/auth";
+import { resolveAffiliateDashboardAccess } from "@/lib/affiliate-access";
 import { getProfile } from "@/lib/profile";
 import { getNotificationPreferences } from "@/lib/notification-preferences";
 import { getAffiliateProfile } from "@/lib/affiliates";
@@ -28,7 +29,8 @@ export default async function AccountPage() {
   if (!user) redirect(ROUTES.login);
 
   const role = await getRole(supabase, user.id);
-  const showAffiliate = isAffiliateOrAdmin(role);
+  const affiliateAccess = await resolveAffiliateDashboardAccess(supabase, user.id, role);
+  const showAffiliate = affiliateAccess.kind === "full";
   const [profile, notificationPrefs, affiliateProfile, profileView, storeMapping, orderCount, purchaseStats] =
     await Promise.all([
       getProfile(supabase, user.id),

@@ -24,6 +24,7 @@ export type {
   RewardPointsLedgerEntry,
   RewardRedemption,
   AffiliateProfile,
+  AffiliateProgramSettings,
   AffiliateStatsCache,
   ChatRoom,
   ChatRoomMember,

@@ -326,6 +326,18 @@ export async function createWooCommerceCoupon(
   return request<RawWooCoupon>(config, "POST", "/coupons", undefined, body);
 }
 
+/** Update coupon (e.g. affiliate discount %). Server-only. */
+export async function updateWooCommerceCoupon(
+  config: WooCommerceConfig,
+  couponId: number,
+  body: Record<string, unknown>
+): Promise<ApiResult<RawWooCoupon>> {
+  if (!Number.isInteger(couponId) || couponId < 1) {
+    return { ok: false, error: "Invalid coupon id" };
+  }
+  return request<RawWooCoupon>(config, "PUT", `/coupons/${couponId}`, undefined, body);
+}
+
 /** Permanently delete a WooCommerce coupon after it has been used or to roll back a failed redemption. */
 export async function deleteWooCommerceCoupon(
   config: WooCommerceConfig,
