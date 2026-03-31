@@ -5,9 +5,9 @@ This doc describes how the iOS app shell is set up and how to run, build, and sh
 ## Approach
 
 - **Source of truth:** The existing Next.js app. No separate mobile codebase.
-- **iOS app:** A Capacitor native shell that loads the **deployed** web app in a WebView (`server.url`). The web app is built and deployed with `NEXT_PUBLIC_APP_STORE_BUILD=true` so Admin is hidden and `/admin` redirects to `/dashboard`.
+- **iOS app:** A Capacitor native shell that loads the **deployed** web app in a WebView (`server.url`). The web app may use `NEXT_PUBLIC_APP_STORE_BUILD=true` for App Store–oriented behavior. **Admin** in nav and `/admin` access are **role-based** (admins only); non-admins are redirected by `src/app/admin/layout.tsx`.
 - **Webhooks:** Remain web-only. They are called by the store (POST to `/api/webhooks/*`); the iOS app never navigates to them.
-- **Admin:** Web-only. In the App Store build, Admin is hidden from nav and any direct request to `/admin` is redirected to `/dashboard` by middleware.
+- **Admin:** Web-only inside the WebView. **Admin** appears in nav only for `user_roles.role = admin`. Non-admins hitting `/admin` are redirected to `/dashboard` server-side in the admin layout (not by middleware).
 
 ## URL strategy
 
@@ -26,8 +26,8 @@ This doc describes how the iOS app shell is set up and how to run, build, and sh
 ## What is implemented
 
 - **Capacitor config:** `capacitor.config.ts` — `appId`, `appName`, `webDir: "public"`, `server.url`, `server.errorPath` (offline/error page), `plugins.SplashScreen`, `plugins.StatusBar`.
-- **App Store build flag:** `NEXT_PUBLIC_APP_STORE_BUILD=true` hides Admin from nav (Phase 1).
-- **Admin redirect:** Middleware redirects `/admin` and `/admin/*` to `/dashboard` when App Store build is enabled.
+- **App Store build flag:** `NEXT_PUBLIC_APP_STORE_BUILD=true` marks App Store–oriented builds; it does **not** hide Admin from admins (nav is role-gated in `AppNav`).
+- **Admin gate:** `src/app/admin/layout.tsx` redirects non-admins from `/admin/*` to `/dashboard`.
 - **Plugins:** `@capacitor/browser`, `@capacitor/status-bar`, `@capacitor/splash-screen`, `@capacitor/push-notifications` — used only when running inside Capacitor.
 - **CapacitorShell:** Root-layout client component that, when in Capacitor: sets status bar style (light content for dark theme), hides splash after first paint, attaches the external-link handler, and registers push listeners + optional APNs registration when the user has **Push** enabled in Account.
 - **Push:** Device tokens are stored in Supabase `push_tokens` (one row per user per platform). The server sends iOS alerts via APNs when `APNS_*` env vars are set and the notification cron runs. Configure **Push Notifications** capability in Xcode (see below).
@@ -53,7 +53,7 @@ pnpm cap:sync
 
 | Variable | Purpose |
 |----------|---------|
-| `NEXT_PUBLIC_APP_STORE_BUILD=true` | Set on the **web** deployment that the iOS app loads. Hides Admin and enables `/admin` redirect. |
+| `NEXT_PUBLIC_APP_STORE_BUILD=true` | Set on the **web** deployment that the iOS app loads. Does not remove Admin from admins; non-admins are blocked from `/admin` by the admin layout. |
 | `CAPACITOR_SERVER_URL` | URL the iOS app loads. Used at `cap sync` time. For local dev use `http://localhost:3000` (or LAN IP). Unset in production so the config uses `NEXT_PUBLIC_APP_URL` or default. |
 | `NEXT_PUBLIC_APP_URL` | Fallback for `server.url` when `CAPACITOR_SERVER_URL` is unset (e.g. production app URL). |
 
@@ -65,14 +65,14 @@ No new env vars were added for the polish phase; existing App Store and Capacito
 
 - In `.env.local`: `NEXT_PUBLIC_APP_STORE_BUILD=true`.
 - Run `pnpm dev`.
-- **Verify:** Admin is hidden in the sidebar; visiting `/admin` redirects to `/dashboard`. External links open in a new browser tab (normal web behavior).
+- **Verify:** Non-admin: no **Admin** in nav; `/admin` → `/dashboard`. Admin: **Admin** in sidebar and bottom nav; `/admin` loads. External links open in a new browser tab (normal web behavior).
 
 ### 2. iOS simulator — load dev server
 
 - In `.env.local`: `CAPACITOR_SERVER_URL=http://localhost:3000` and `NEXT_PUBLIC_APP_STORE_BUILD=true`.
 - Terminal 1: `pnpm dev`.
 - Terminal 2: `pnpm cap:sync` then `pnpm cap:ios`; run the app on a simulator.
-- **Verify:** App loads localhost; status bar is light; splash hides; no Admin; `/admin` redirects; tapping “Shop at mia-science.com” (or any external link) opens Safari View Controller, not the main WebView.
+- **Verify:** App loads localhost; status bar is light; splash hides. Non-admin: no **Admin** in nav; `/admin` → dashboard. Admin: **Admin** visible; `/admin` loads. Tapping “Shop at mia-science.com” (or any external link) opens Safari View Controller, not the main WebView.
 
 ### 3. iOS simulator — load production URL
 
@@ -139,7 +139,7 @@ Use this as a final pass before TestFlight/App Store submit.
 2. **Simulator test**
    - Set `.env.local`: `CAPACITOR_SERVER_URL=http://localhost:3000`, `NEXT_PUBLIC_APP_STORE_BUILD=true`.
    - Run `pnpm dev` in one terminal; in another run `pnpm cap:sync` then `pnpm cap:ios`. Run the app on a simulator.
-   - Confirm: app loads, no Admin in nav, `/admin` redirects to `/dashboard`, external links (e.g. Shop) open in Safari View Controller, status bar and splash behave, offline shows error page.
+   - Confirm: app loads; non-admin: no **Admin** in nav, `/admin` → dashboard; admin: **Admin** visible, `/admin` loads; external links (e.g. Shop) open in Safari View Controller; status bar and splash behave; offline shows error page.
 
 3. **Physical iPhone test**
    - Use your machine’s LAN IP for `CAPACITOR_SERVER_URL` (e.g. `http://192.168.1.x:3000`). Ensure phone and Mac are on the same network. Run `pnpm cap:sync`, then in Xcode select your device and Run.
@@ -154,7 +154,7 @@ Use this as a final pass before TestFlight/App Store submit.
    - **Purpose:** Miami Science Tracker is a companion app for customers of the Miami Science store (mia-science.com). It lets users track workouts, supplement supply, order history, and rewards. The store sells physical products; purchasing is done on the website or via invoice, not in the app.
    - **Login:** Sign up or log in with email inside the app. No external account required for review.
    - **External links:** Links to the store (e.g. Shop, Buy again) open in an in-app browser (Safari View Controller).
-   - **Admin:** Admin and operator tools are web-only and are not included in this build; the App Store build is customer- and affiliate-facing only.
+   - **Admin:** Operator `/admin` tools load in the WebView only for accounts with the admin role; other users cannot access them (server-side redirect). Most reviewers use non-admin test accounts.
 
 ## Xcode handoff checklist (exact manual steps)
 
@@ -174,7 +174,7 @@ Follow this after `pnpm install`, `npx cap add ios` (if `ios/` was missing), and
 
 4. **Simulator pass**
    - Select an iOS simulator as the run destination. Press **Run** (⌘R).
-   - Confirm: app loads, no Admin, `/admin` redirects, external links open in Safari View Controller.
+   - Confirm: app loads; non-admin: no **Admin**, `/admin` → dashboard; admin: **Admin** and `/admin` work; external links open in Safari View Controller.
 
 5. **Physical iPhone pass**
    - Connect an iPhone; select it as the run destination. Run (⌘R).
@@ -191,12 +191,12 @@ Follow this after `pnpm install`, `npx cap add ios` (if `ios/` was missing), and
 ## Known limitations
 
 - **Remote dependency:** The app loads its main content from a remote web deployment (`server.url`). If that URL is down or unreachable, the app shows the offline/error page (“Can’t connect”) until the service is back or the user retries.
-- **Admin in App Store build:** Admin and all `/admin/*` routes are intentionally hidden and redirected to `/dashboard` when `NEXT_PUBLIC_APP_STORE_BUILD=true`. Operators use a dedicated hostname with `NEXT_PUBLIC_ADMIN_WEB_HOSTS` (see `docs/ADMIN_WEB_DEPLOYMENT.md`) or a second deployment with the flag off.
+- **Admin:** `/admin/*` is allowed in the WebView for **admin** users only (nav + `src/app/admin/layout.tsx`). Non-admins are redirected to `/dashboard`. See `docs/ADMIN_WEB_DEPLOYMENT.md`.
 - **External links:** Links to other origins (store, help, support) intentionally open in the in-app browser (Safari View Controller), not inside the main app WebView, so the tracker experience stays focused and store/shop flows use the system browser UI.
 
 ## Summary
 
-- **RECOMMENDED SETUP:** Single Next.js app; Capacitor iOS shell loads it via `server.url`. App Store deployment uses `NEXT_PUBLIC_APP_STORE_BUILD=true`; admin is hidden and redirect-protected; external links open in Safari View Controller; status bar and splash are configured; offline shows a fallback page.
+- **RECOMMENDED SETUP:** Single Next.js app; Capacitor iOS shell loads it via `server.url`. App Store deployment may use `NEXT_PUBLIC_APP_STORE_BUILD=true`; admin nav and `/admin` are role-gated; non-admins cannot access `/admin`; external links open in Safari View Controller; status bar and splash are configured; offline shows a fallback page.
 - **FILES CHANGED (this phase):** `package.json`, `capacitor.config.ts`, `public/capacitor-error.html`, `src/lib/capacitor-external-links.ts`, `src/components/capacitor/CapacitorShell.tsx`, `src/app/layout.tsx`, this doc.
 - **READY NOW:** Config, plugins, external-link handling, status bar, splash config, error page, and docs. Run `pnpm install`, `npx cap add ios` (if not done), `pnpm cap:sync`, then open in Xcode.
 - **STILL NEEDED IN XCODE:** Signing, AppIcon (and optional Splash) assets, archive and upload to App Store Connect, TestFlight and App Review as above.

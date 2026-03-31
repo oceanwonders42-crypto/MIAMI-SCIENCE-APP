@@ -1,6 +1,6 @@
 export const APP_NAME = "Miami Science Tracker";
 
-/** When true, hide Admin from nav and any customer-facing admin entry points (App Store build). */
+/** When true, marks App Store–oriented builds (e.g. Capacitor). Admin nav is role-gated in `AppNav`. */
 export const isAppStoreBuild =
   process.env.NEXT_PUBLIC_APP_STORE_BUILD === "true";
 

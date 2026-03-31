@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { cn } from "@/lib/utils";
 import type { UserRole } from "@/types";
-import { ROUTES, isAppStoreBuild } from "@/lib/constants";
+import { ROUTES } from "@/lib/constants";
 import { isAffiliateOrAdmin } from "@/lib/auth";
 import { AFFILIATE_ROOM_SLUG } from "@/lib/affiliate-chat";
 
@@ -28,10 +28,7 @@ const MAIN_NAV: { href: string; label: string; roles?: UserRole[] }[] = [
 ];
 
 function getNavItems(role: UserRole) {
-  return MAIN_NAV.filter((item) => {
-    if (isAppStoreBuild && item.href === ROUTES.admin) return false;
-    return !item.roles || item.roles.includes(role);
-  });
+  return MAIN_NAV.filter((item) => !item.roles || item.roles.includes(role));
 }
 
 interface AppNavProps {
@@ -109,6 +106,9 @@ export function AppNav({
       href: COMMUNITY_AFFILIATE_HREF,
       label: "Chat",
     });
+  }
+  if (role === "admin") {
+    bottomItems.push({ href: ROUTES.admin, label: "Admin" });
   }
   bottomItems.push({ href: ROUTES.account, label: "Account" });
 

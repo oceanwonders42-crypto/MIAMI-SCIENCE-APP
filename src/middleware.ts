@@ -1,6 +1,5 @@
-import { type NextRequest, NextResponse } from "next/server";
+import { type NextRequest } from "next/server";
 import { updateSession } from "@/lib/supabase/middleware";
-import { shouldRedirectAppStoreAdminPath } from "@/lib/app-store-admin-guard";
 
 const PROTECTED_PREFIXES = [
   "/dashboard",
@@ -23,23 +22,6 @@ const ADMIN_ONLY = ["/admin"];
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  const isAppStoreBuild =
-    process.env.NEXT_PUBLIC_APP_STORE_BUILD === "true";
-
-  // App Store build: block /admin in production only (Vercel / `next start`). `next dev` keeps /admin
-  // so QA can test with NEXT_PUBLIC_APP_STORE_BUILD=true without turning off the flag.
-  if (
-    shouldRedirectAppStoreAdminPath({
-      isAppStoreBuild,
-      pathname,
-      nodeEnv: process.env.NODE_ENV,
-      hostHeader: request.headers.get("host"),
-    })
-  ) {
-    const url = request.nextUrl.clone();
-    url.pathname = "/dashboard";
-    return NextResponse.redirect(url);
-  }
 
   const supabaseResponse = await updateSession(request);
 
