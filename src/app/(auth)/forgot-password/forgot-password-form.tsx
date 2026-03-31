@@ -116,13 +116,6 @@ export function ForgotPasswordForm() {
       >
         {loading ? "Sending…" : "Send reset link"}
       </button>
-      <p className="text-xs text-zinc-500 leading-snug">
-        The email contains a link to this app&apos;s{" "}
-        <code className="text-zinc-400">/reset-password</code> page. In Supabase
-        Dashboard → Authentication → URL Configuration, add that full URL
-        (with your domain) under <strong>Redirect URLs</strong>, and set{" "}
-        <strong>Site URL</strong> to your app&apos;s public origin.
-      </p>
     </form>
   );
 }

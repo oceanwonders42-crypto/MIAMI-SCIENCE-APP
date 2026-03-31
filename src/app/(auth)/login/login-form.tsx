@@ -12,6 +12,7 @@ export function LoginForm() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [wpLoading, setWpLoading] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -33,6 +34,46 @@ export function LoginForm() {
     }
     router.push(ROUTES.dashboard);
     router.refresh();
+  }
+
+  async function handleWordPressSignIn() {
+    setError(null);
+    const identifier = email.trim();
+    if (!identifier || !password) {
+      setError("Enter your WordPress email/username and password.");
+      return;
+    }
+    setWpLoading(true);
+    try {
+      const res = await fetch("/api/auth/wordpress-login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ identifier, password }),
+      });
+      const json = (await res.json().catch(() => null)) as
+        | { ok?: boolean; error?: string; email?: string; otp?: string }
+        | null;
+      if (!res.ok || !json?.ok || !json.email || !json.otp) {
+        setError(json?.error || "WordPress sign-in failed.");
+        return;
+      }
+      const supabase = createClient();
+      const { error: otpError } = await supabase.auth.verifyOtp({
+        email: json.email,
+        token: json.otp,
+        type: "magiclink",
+      });
+      if (otpError) {
+        setError(`WordPress login succeeded, but session sign-in failed: ${otpError.message}`);
+        return;
+      }
+      router.push(ROUTES.dashboard);
+      router.refresh();
+    } catch {
+      setError("WordPress sign-in is temporarily unavailable.");
+    } finally {
+      setWpLoading(false);
+    }
   }
 
   return (
@@ -75,6 +116,14 @@ export function LoginForm() {
         className="w-full rounded-lg bg-primary-500 hover:bg-primary-400 text-zinc-900 font-semibold py-2.5 text-sm disabled:opacity-50 transition-colors"
       >
         {loading ? "Signing in…" : "Sign in"}
+      </button>
+      <button
+        type="button"
+        onClick={handleWordPressSignIn}
+        disabled={wpLoading}
+        className="w-full rounded-lg border border-zinc-700 bg-zinc-800/60 hover:bg-zinc-800 text-zinc-100 font-semibold py-2.5 text-sm disabled:opacity-50 transition-colors"
+      >
+        {wpLoading ? "Connecting to WordPress…" : "Continue with WordPress"}
       </button>
     </form>
   );
