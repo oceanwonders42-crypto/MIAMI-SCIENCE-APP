@@ -132,6 +132,40 @@ function asRecord(v: unknown): Record<string, unknown> | null {
     : null;
 }
 
+function isWordPressRestErrorEnvelope(o: Record<string, unknown>): boolean {
+  if (typeof o.code !== "string" || typeof o.message !== "string") return false;
+  if (o.id != null) return false;
+  if (pickString(o, ["email", "user_email", "affiliate_email"])) return false;
+  const dr = asRecord(o.data);
+  if (!dr) return true;
+  const keys = Object.keys(dr);
+  return keys.length === 1 && keys[0] === "status" && typeof dr.status === "number";
+}
+
+/**
+ * Normalize SliceWP GET /affiliates/:id JSON — handles array bodies, { data }, and WP REST error envelopes.
+ * Exported for unit tests.
+ */
+export function normalizeSliceWPSingleAffiliatePayload(json: unknown): Record<string, unknown> | null {
+  if (json == null) return null;
+  if (Array.isArray(json)) {
+    const first = json[0];
+    return asRecord(first);
+  }
+  const o = asRecord(json);
+  if (!o) return null;
+  if (isWordPressRestErrorEnvelope(o)) return null;
+  const nested = asRecord(o.data);
+  if (
+    nested &&
+    !isWordPressRestErrorEnvelope(nested) &&
+    (nested.id != null || pickString(nested, ["email", "user_email", "affiliate_email"]))
+  ) {
+    return nested;
+  }
+  return o;
+}
+
 function pickString(obj: Record<string, unknown>, keys: string[]): string | null {
   for (const k of keys) {
     const v = obj[k];
@@ -165,7 +199,13 @@ function parseAffiliateList(json: unknown): Record<string, unknown>[] {
 
 function affiliateEmailFromRow(row: Record<string, unknown>): string | null {
   return (
-    pickString(row, ["email", "user_email", "payment_email"])?.trim() ?? null
+    pickString(row, [
+      "email",
+      "user_email",
+      "affiliate_email",
+      "payment_email",
+      "contact_email",
+    ])?.trim() ?? null
   );
 }
 
@@ -230,10 +270,18 @@ export async function fetchSliceWPAffiliatePatch(
   affiliateId: string
 ): Promise<SliceWPAffiliatePatch | null> {
   if (!isSliceWPSyncEnabled()) return null;
-  const res = await slicewpFetch(`/affiliates/${encodeURIComponent(affiliateId)}?context=edit`);
-  if (!res?.ok) return null;
-  const json: unknown = await res.json().catch(() => null);
-  const row = asRecord(json);
+  const id = encodeURIComponent(affiliateId);
+
+  async function loadRow(path: string): Promise<Record<string, unknown> | null> {
+    const res = await slicewpFetch(path);
+    if (!res?.ok) return null;
+    const json: unknown = await res.json().catch(() => null);
+    return normalizeSliceWPSingleAffiliatePayload(json);
+  }
+
+  const row =
+    (await loadRow(`/affiliates/${id}?context=edit`)) ??
+    (await loadRow(`/affiliates/${id}`));
   if (!row) return null;
 
   const referralLink =
@@ -241,9 +289,19 @@ export async function fetchSliceWPAffiliatePatch(
       "referral_url",
       "referral_link",
       "affiliate_url",
+      "affiliate_link",
       "url",
+      "site_url",
+      "referral",
     ]) ?? null;
-  const couponCode = pickString(row, ["coupon_code", "coupon"]) ?? null;
+  const couponCode =
+    pickString(row, [
+      "coupon_code",
+      "coupon",
+      "affiliate_coupon",
+      "wc_coupon_code",
+      "woo_coupon_code",
+    ]) ?? null;
   const payoutStatus =
     pickString(row, ["payout_status", "payment_status", "status"]) ?? null;
   const affiliateEmail = affiliateEmailFromRow(row);

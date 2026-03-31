@@ -32,6 +32,7 @@ export default async function DashboardPage() {
   const userId = user?.id ?? "";
   const role = await getRole(supabase, userId);
   const showAffiliateLinks = isAffiliateOrAdmin(role);
+  const checkInDateYmd = todayDateString();
 
   const [
     profile,
@@ -54,7 +55,7 @@ export default async function DashboardPage() {
     getOrders(supabase, userId, 5),
     getShipmentsForUser(supabase, userId),
     getRewardBalance(supabase, userId),
-    getCheckIn(supabase, userId, todayDateString()),
+    getCheckIn(supabase, userId, checkInDateYmd),
     getCheckInStreaks(supabase, userId),
     getAttentionItems(supabase, userId),
     getActiveAnnouncements(supabase, 3),
@@ -88,7 +89,11 @@ export default async function DashboardPage() {
         <div id="daily-checkin">
           <Card className="border-white/[0.07] bg-zinc-900/35">
             <CardContent className="p-4 sm:p-5">
-              <CheckInCard todayCheckIn={todayCheckIn} embedded />
+              <CheckInCard
+                todayCheckIn={todayCheckIn}
+                checkInDateYmd={checkInDateYmd}
+                embedded
+              />
             </CardContent>
           </Card>
         </div>

@@ -23,6 +23,7 @@ import { ReportButton } from "./ReportButton";
 import { CommunityRefreshButton } from "./CommunityRefreshButton";
 import { ROUTES } from "@/lib/constants";
 import { DISCLAIMER } from "@/lib/constants";
+import { formatTimestampUtcEnUS } from "@/lib/date-display";
 
 const COMMUNITY_RULES = [
   "Be respectful. No harassment or hate speech.",
@@ -174,7 +175,7 @@ export default async function CommunityPage({
                             {displayNames[m.user_id] ?? "Anonymous"}
                           </span>
                           <span className="text-xs text-zinc-500 dark:text-zinc-400 ml-2">
-                            {new Date(m.created_at).toLocaleString()}
+                            {formatTimestampUtcEnUS(m.created_at)}
                           </span>
                           <p className="text-sm text-zinc-700 dark:text-zinc-300 mt-0.5 break-words">
                             {m.content}

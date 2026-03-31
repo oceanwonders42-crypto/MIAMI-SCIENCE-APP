@@ -8,12 +8,14 @@ import type { WorkoutStats } from "@/lib/workouts";
 
 interface TodayBlockProps {
   todayCheckIn: CheckIn | null;
+  checkInDateYmd: string;
   checkInStreaks: CheckInStreaks;
   workoutStats: WorkoutStats;
 }
 
 export function TodayBlock({
   todayCheckIn,
+  checkInDateYmd,
   checkInStreaks,
   workoutStats,
 }: TodayBlockProps) {
@@ -23,7 +25,7 @@ export function TodayBlock({
   return (
     <div className="rounded-2xl border border-zinc-800 bg-zinc-900/50 p-4 md:p-5">
       <div className="grid gap-6 md:grid-cols-2">
-        <CheckInCard todayCheckIn={todayCheckIn} embedded />
+        <CheckInCard todayCheckIn={todayCheckIn} checkInDateYmd={checkInDateYmd} embedded />
         <StreakCard checkInStreaks={checkInStreaks} workoutStats={workoutStats} embedded />
       </div>
       <div className="mt-4 pt-4 border-t border-zinc-800">

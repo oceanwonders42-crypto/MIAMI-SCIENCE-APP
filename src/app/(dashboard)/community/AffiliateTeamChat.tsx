@@ -22,12 +22,200 @@ import {
   type ReactionSummary,
 } from "@/lib/chat-reactions";
 import { Pin } from "lucide-react";
+import { formatTimestampUtcEnUS } from "@/lib/date-display";
 
 function initials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
   if (parts.length === 0) return "?";
   if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
+function attachAffiliateChatChannelHandlers(
+  channel: RealtimeChannel,
+  roomId: string,
+  currentUserId: string,
+  setMessages: React.Dispatch<React.SetStateAction<ChatMessage[]>>,
+  setReactions: React.Dispatch<
+    React.SetStateAction<Record<string, ReactionSummary[]>>
+  >,
+  setOnlineIds: React.Dispatch<React.SetStateAction<Set<string>>>,
+  setTypingUsers: React.Dispatch<
+    React.SetStateAction<{ id: string; label: string }[]>
+  >,
+  typingClearRef: React.MutableRefObject<
+    Map<string, ReturnType<typeof setTimeout>>
+  >,
+  messageIdsRef: React.MutableRefObject<Set<string>>
+) {
+  return channel
+    .on(
+      "postgres_changes",
+      {
+        event: "INSERT",
+        schema: "public",
+        table: "chat_messages",
+        filter: `room_id=eq.${roomId}`,
+      },
+      (payload) => {
+        const row = normalizeMessage(payload.new as Record<string, unknown>);
+        setMessages((prev) => {
+          if (prev.some((m) => m.id === row.id)) return prev;
+          return [...prev, row].sort(
+            (a, b) =>
+              new Date(a.created_at).getTime() -
+              new Date(b.created_at).getTime()
+          );
+        });
+      }
+    )
+    .on(
+      "postgres_changes",
+      {
+        event: "UPDATE",
+        schema: "public",
+        table: "chat_messages",
+        filter: `room_id=eq.${roomId}`,
+      },
+      (payload) => {
+        const row = normalizeMessage(payload.new as Record<string, unknown>);
+        setMessages((prev) => {
+          const next = prev.map((m) =>
+            m.id === row.id ? { ...m, ...row } : m
+          );
+          if (row.is_pinned) {
+            return next.map((m) =>
+              m.id === row.id ? m : { ...m, is_pinned: false }
+            );
+          }
+          return next;
+        });
+      }
+    )
+    .on(
+      "postgres_changes",
+      { event: "INSERT", schema: "public", table: "chat_reactions" },
+      (payload) => {
+        const n = payload.new as {
+          message_id: string;
+          emoji: string;
+          user_id: string;
+        };
+        if (!messageIdsRef.current.has(n.message_id)) return;
+        setReactions((prev) => {
+          const list = [...(prev[n.message_id] ?? [])];
+          const idx = list.findIndex((r) => r.emoji === n.emoji);
+          const self = n.user_id === currentUserId;
+          if (idx >= 0) {
+            const next = {
+              ...list[idx],
+              count: list[idx].count + 1,
+              self: list[idx].self || self,
+            };
+            list[idx] = next;
+          } else {
+            list.push({ emoji: n.emoji, count: 1, self });
+          }
+          return { ...prev, [n.message_id]: list };
+        });
+      }
+    )
+    .on(
+      "postgres_changes",
+      { event: "DELETE", schema: "public", table: "chat_reactions" },
+      (payload) => {
+        const oldRow = payload.old as {
+          message_id?: string;
+          emoji?: string;
+          user_id?: string;
+        } | null;
+        if (!oldRow?.message_id || !oldRow.emoji) return;
+        if (!messageIdsRef.current.has(oldRow.message_id)) return;
+        setReactions((prev) => {
+          const list = [...(prev[oldRow.message_id!] ?? [])];
+          const idx = list.findIndex((r) => r.emoji === oldRow.emoji);
+          if (idx < 0) return prev;
+          const wasSelf = oldRow.user_id === currentUserId;
+          const nextCount = list[idx].count - 1;
+          let nextList: ReactionSummary[];
+          if (nextCount <= 0) {
+            nextList = list.filter((_, i) => i !== idx);
+          } else {
+            nextList = list.map((r, i) =>
+              i === idx
+                ? {
+                    ...r,
+                    count: nextCount,
+                    self: wasSelf ? false : r.self,
+                  }
+                : r
+            );
+          }
+          return { ...prev, [oldRow.message_id!]: nextList };
+        });
+      }
+    )
+    .on(
+      "postgres_changes",
+      {
+        event: "INSERT",
+        schema: "public",
+        table: "chat_room_presence",
+        filter: `room_id=eq.${roomId}`,
+      },
+      (payload) => {
+        const row = payload.new as {
+          user_id?: string;
+          last_seen_at?: string;
+        } | null;
+        if (!row?.user_id || !row.last_seen_at) return;
+        const t = new Date(row.last_seen_at).getTime();
+        if (Date.now() - t > 5 * 60 * 1000) return;
+        setOnlineIds((prev) => new Set(prev).add(row.user_id!));
+      }
+    )
+    .on(
+      "postgres_changes",
+      {
+        event: "UPDATE",
+        schema: "public",
+        table: "chat_room_presence",
+        filter: `room_id=eq.${roomId}`,
+      },
+      (payload) => {
+        const row = payload.new as {
+          user_id?: string;
+          last_seen_at?: string;
+        } | null;
+        if (!row?.user_id || !row.last_seen_at) return;
+        const t = new Date(row.last_seen_at).getTime();
+        if (Date.now() - t > 5 * 60 * 1000) {
+          setOnlineIds((prev) => {
+            const n = new Set(prev);
+            n.delete(row.user_id!);
+            return n;
+          });
+          return;
+        }
+        setOnlineIds((prev) => new Set(prev).add(row.user_id!));
+      }
+    )
+    .on("broadcast", { event: "typing" }, ({ payload }) => {
+      const p = payload as { userId?: string; label?: string };
+      if (!p.userId || p.userId === currentUserId) return;
+      const label = p.label ?? "Someone";
+      setTypingUsers((prev) => {
+        const rest = prev.filter((x) => x.id !== p.userId);
+        return [...rest, { id: p.userId!, label }];
+      });
+      const existing = typingClearRef.current.get(p.userId!);
+      if (existing) clearTimeout(existing);
+      const to = setTimeout(() => {
+        setTypingUsers((prev) => prev.filter((x) => x.id !== p.userId));
+        typingClearRef.current.delete(p.userId!);
+      }, 4000);
+      typingClearRef.current.set(p.userId!, to);
+    });
 }
 
 function normalizeMessage(row: Record<string, unknown>): ChatMessage {
@@ -141,184 +329,53 @@ export function AffiliateTeamChat({
   }, [roomId]);
 
   useEffect(() => {
-    const channel = supabase
-      .channel(`affiliate-chat-v2:${roomId}`, {
+    let cancelled = false;
+
+    const start = async (isRetry: boolean) => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (cancelled) return;
+      if (!session?.access_token) return;
+
+      supabase.realtime.setAuth(session.access_token);
+
+      const ch = supabase.channel(`affiliate-chat-v2:${roomId}`, {
         config: { broadcast: { ack: false } },
       });
-    realtimeChannelRef.current = channel;
-    channel
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "chat_messages",
-          filter: `room_id=eq.${roomId}`,
-        },
-        (payload) => {
-          const row = normalizeMessage(payload.new as Record<string, unknown>);
-          setMessages((prev) => {
-            if (prev.some((m) => m.id === row.id)) return prev;
-            return [...prev, row].sort(
-              (a, b) =>
-                new Date(a.created_at).getTime() -
-                new Date(b.created_at).getTime()
-            );
-          });
-        }
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "UPDATE",
-          schema: "public",
-          table: "chat_messages",
-          filter: `room_id=eq.${roomId}`,
-        },
-        (payload) => {
-          const row = normalizeMessage(payload.new as Record<string, unknown>);
-          setMessages((prev) => {
-            const next = prev.map((m) =>
-              m.id === row.id ? { ...m, ...row } : m
-            );
-            if (row.is_pinned) {
-              return next.map((m) =>
-                m.id === row.id ? m : { ...m, is_pinned: false }
-              );
-            }
-            return next;
-          });
-        }
-      )
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "chat_reactions" },
-        (payload) => {
-          const n = payload.new as {
-            message_id: string;
-            emoji: string;
-            user_id: string;
-          };
-          if (!messageIdsRef.current.has(n.message_id)) return;
-          setReactions((prev) => {
-            const list = [...(prev[n.message_id] ?? [])];
-            const idx = list.findIndex((r) => r.emoji === n.emoji);
-            const self = n.user_id === currentUserId;
-            if (idx >= 0) {
-              const next = { ...list[idx], count: list[idx].count + 1, self: list[idx].self || self };
-              list[idx] = next;
-            } else {
-              list.push({ emoji: n.emoji, count: 1, self });
-            }
-            return { ...prev, [n.message_id]: list };
-          });
-        }
-      )
-      .on(
-        "postgres_changes",
-        { event: "DELETE", schema: "public", table: "chat_reactions" },
-        (payload) => {
-          const oldRow = payload.old as {
-            message_id?: string;
-            emoji?: string;
-            user_id?: string;
-          } | null;
-          if (!oldRow?.message_id || !oldRow.emoji) return;
-          if (!messageIdsRef.current.has(oldRow.message_id)) return;
-          setReactions((prev) => {
-            const list = [...(prev[oldRow.message_id!] ?? [])];
-            const idx = list.findIndex((r) => r.emoji === oldRow.emoji);
-            if (idx < 0) return prev;
-            const wasSelf = oldRow.user_id === currentUserId;
-            const nextCount = list[idx].count - 1;
-            let nextList: ReactionSummary[];
-            if (nextCount <= 0) {
-              nextList = list.filter((_, i) => i !== idx);
-            } else {
-              nextList = list.map((r, i) =>
-                i === idx
-                  ? {
-                      ...r,
-                      count: nextCount,
-                      self: wasSelf ? false : r.self,
-                    }
-                  : r
-              );
-            }
-            return { ...prev, [oldRow.message_id!]: nextList };
-          });
-        }
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "chat_room_presence",
-          filter: `room_id=eq.${roomId}`,
-        },
-        (payload) => {
-          const row = payload.new as {
-            user_id?: string;
-            last_seen_at?: string;
-          } | null;
-          if (!row?.user_id || !row.last_seen_at) return;
-          const t = new Date(row.last_seen_at).getTime();
-          if (Date.now() - t > 5 * 60 * 1000) return;
-          setOnlineIds((prev) => new Set(prev).add(row.user_id!));
-        }
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "UPDATE",
-          schema: "public",
-          table: "chat_room_presence",
-          filter: `room_id=eq.${roomId}`,
-        },
-        (payload) => {
-          const row = payload.new as {
-            user_id?: string;
-            last_seen_at?: string;
-          } | null;
-          if (!row?.user_id || !row.last_seen_at) return;
-          const t = new Date(row.last_seen_at).getTime();
-          if (Date.now() - t > 5 * 60 * 1000) {
-            setOnlineIds((prev) => {
-              const n = new Set(prev);
-              n.delete(row.user_id!);
-              return n;
-            });
-            return;
-          }
-          setOnlineIds((prev) => new Set(prev).add(row.user_id!));
-        }
-      )
-      .on("broadcast", { event: "typing" }, ({ payload }) => {
-        const p = payload as { userId?: string; label?: string };
-        if (!p.userId || p.userId === currentUserId) return;
-        const label = p.label ?? "Someone";
-        setTypingUsers((prev) => {
-          const rest = prev.filter((x) => x.id !== p.userId);
-          return [...rest, { id: p.userId!, label }];
-        });
-        const existing = typingClearRef.current.get(p.userId!);
-        if (existing) clearTimeout(existing);
-        const to = setTimeout(() => {
-          setTypingUsers((prev) => prev.filter((x) => x.id !== p.userId));
-          typingClearRef.current.delete(p.userId!);
-        }, 4000);
-        typingClearRef.current.set(p.userId!, to);
-      })
-      .subscribe((status) => {
-        if (status === "CHANNEL_ERROR") {
-          console.warn("[affiliate chat] Realtime channel error");
+      realtimeChannelRef.current = ch;
+
+      attachAffiliateChatChannelHandlers(
+        ch,
+        roomId,
+        currentUserId,
+        setMessages,
+        setReactions,
+        setOnlineIds,
+        setTypingUsers,
+        typingClearRef,
+        messageIdsRef
+      );
+
+      ch.subscribe((status) => {
+        if (cancelled) return;
+        if (status === "CHANNEL_ERROR" && !isRetry) {
+          void supabase.removeChannel(ch);
+          realtimeChannelRef.current = null;
+          setTimeout(() => {
+            if (!cancelled) void start(true);
+          }, 750);
         }
       });
+    };
+
+    void start(false);
 
     return () => {
+      cancelled = true;
+      const ch = realtimeChannelRef.current;
       realtimeChannelRef.current = null;
-      void supabase.removeChannel(channel);
+      if (ch) void supabase.removeChannel(ch);
       typingClearRef.current.forEach((t) => clearTimeout(t));
     };
   }, [supabase, roomId, currentUserId]);
@@ -390,19 +447,6 @@ export function AffiliateTeamChat({
     }
   }
 
-  function formatTime(iso: string) {
-    try {
-      return new Date(iso).toLocaleString(undefined, {
-        month: "short",
-        day: "numeric",
-        hour: "numeric",
-        minute: "2-digit",
-      });
-    } catch {
-      return "";
-    }
-  }
-
   const onlineInRoom = onlineIds.size;
 
   return (
@@ -427,7 +471,9 @@ export function AffiliateTeamChat({
             Announcement
           </div>
           <p className="text-sm text-zinc-100 mt-1.5 leading-snug">{pinned.content}</p>
-          <p className="text-[11px] text-zinc-500 mt-1">{formatTime(pinned.created_at)}</p>
+          <p className="text-[11px] text-zinc-500 mt-1">
+            {formatTimestampUtcEnUS(pinned.created_at)}
+          </p>
         </div>
       )}
 
@@ -497,7 +543,9 @@ export function AffiliateTeamChat({
                         </span>
                       )}
                     </div>
-                    <span className="text-[11px] text-zinc-500">{formatTime(m.created_at)}</span>
+                    <span className="text-[11px] text-zinc-500">
+                      {formatTimestampUtcEnUS(m.created_at)}
+                    </span>
                   </div>
                   <div
                     role="group"

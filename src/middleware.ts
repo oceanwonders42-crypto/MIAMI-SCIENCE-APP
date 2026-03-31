@@ -33,6 +33,7 @@ export async function middleware(request: NextRequest) {
       isAppStoreBuild,
       pathname,
       nodeEnv: process.env.NODE_ENV,
+      hostHeader: request.headers.get("host"),
     })
   ) {
     const url = request.nextUrl.clone();

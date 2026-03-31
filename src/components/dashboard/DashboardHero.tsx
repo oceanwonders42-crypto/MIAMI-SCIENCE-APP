@@ -4,40 +4,14 @@ import { ROUTES } from "@/lib/constants";
 import type { WorkoutStats } from "@/lib/workouts";
 import type { CheckInStreaks } from "@/lib/check-ins";
 import type { ExercisePR } from "@/lib/exercise-history";
+import {
+  DashboardHeroSalutation,
+  DashboardHeroTagline,
+} from "@/components/dashboard/DashboardHeroGreeting";
 
 /** Moody gym floor / equipment — Unsplash (free use). */
 const HERO_IMAGE =
   "https://images.unsplash.com/photo-1581009146145-b5ef050c2e1e?auto=format&fit=crop&w=1920&q=85";
-
-const MOTIVATIONAL_LINES = [
-  "Own every rep.",
-  "Stronger than yesterday.",
-  "Build the habit. Earn the edge.",
-  "Your session starts now.",
-  "Consistency beats intensity.",
-  "Train like it matters — because it does.",
-  "Progress is earned, not given.",
-  "Show up. Lock in. Level up.",
-];
-
-function partOfDay(): string {
-  const h = new Date().getHours();
-  if (h < 12) return "Good morning";
-  if (h < 17) return "Good afternoon";
-  return "Good evening";
-}
-
-function dayOfYear(): number {
-  const now = new Date();
-  const start = new Date(now.getFullYear(), 0, 0);
-  const diff = now.getTime() - start.getTime();
-  return Math.floor(diff / 86400000);
-}
-
-function pickMotivation(displayName: string): string {
-  const seed = displayName.length + dayOfYear();
-  return MOTIVATIONAL_LINES[seed % MOTIVATIONAL_LINES.length];
-}
 
 /**
  * Premium gym-app hero: full-bleed imagery, bold welcome, glass quick stats.
@@ -55,7 +29,6 @@ export function DashboardHero({
   rewardBalance: number;
   recentPR: ExercisePR | null;
 }) {
-  const tagline = pickMotivation(displayName);
   const prShort = recentPR
     ? `${recentPR.exerciseName.split(" ").slice(0, 2).join(" ")}${recentPR.exerciseName.split(" ").length > 2 ? "…" : ""}`
     : null;
@@ -89,15 +62,11 @@ export function DashboardHero({
       />
 
       <div className="relative z-10 flex min-h-[inherit] flex-col justify-end px-4 pb-8 pt-14 md:px-8 md:pb-10 max-w-5xl mx-auto w-full">
-        <p className="text-[11px] font-bold uppercase tracking-[0.28em] text-primary-300/90 drop-shadow-sm">
-          {partOfDay()}
-        </p>
+        <DashboardHeroSalutation />
         <h1 className="mt-2 text-[2.35rem] sm:text-5xl md:text-6xl font-black tracking-[-0.04em] text-white leading-[0.95] drop-shadow-[0_2px_24px_rgba(0,0,0,0.45)]">
           {displayName}
         </h1>
-        <p className="mt-3 max-w-lg text-base sm:text-lg font-semibold text-zinc-200/95 leading-snug">
-          {tagline}
-        </p>
+        <DashboardHeroTagline displayName={displayName} />
 
         <div className="mt-8 grid grid-cols-2 gap-2.5 sm:gap-3 md:grid-cols-4">
           <Link

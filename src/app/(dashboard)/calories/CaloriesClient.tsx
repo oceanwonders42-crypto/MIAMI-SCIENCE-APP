@@ -8,19 +8,7 @@ import { estimateMealAction, saveMealLogAction } from "./actions";
 import type { MealLog } from "@/types/database";
 import { createClient } from "@/lib/supabase/client";
 import { PROGRESS_PHOTOS_BUCKET } from "@/lib/progress-constants";
-
-function fmtDate(iso: string) {
-  try {
-    return new Date(iso).toLocaleString(undefined, {
-      month: "short",
-      day: "numeric",
-      hour: "numeric",
-      minute: "2-digit",
-    });
-  } catch {
-    return iso;
-  }
-}
+import { formatTimestampUtcEnUS } from "@/lib/date-display";
 
 export function CaloriesClient({
   initialLogs,
@@ -326,7 +314,7 @@ function MealHistoryRow({ log }: { log: MealLog }) {
           P {log.protein_g ?? "—"} · C {log.carbs_g ?? "—"} · F {log.fat_g ?? "—"}
         </p>
         {log.notes?.trim() && <p className="text-xs text-zinc-400 mt-1 line-clamp-2">{log.notes}</p>}
-        <p className="text-[10px] text-zinc-600 mt-1">{fmtDate(log.logged_at)}</p>
+        <p className="text-[10px] text-zinc-600 mt-1">{formatTimestampUtcEnUS(log.logged_at)}</p>
       </div>
     </li>
   );

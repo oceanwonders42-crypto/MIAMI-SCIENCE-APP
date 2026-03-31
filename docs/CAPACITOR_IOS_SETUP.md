@@ -191,7 +191,7 @@ Follow this after `pnpm install`, `npx cap add ios` (if `ios/` was missing), and
 ## Known limitations
 
 - **Remote dependency:** The app loads its main content from a remote web deployment (`server.url`). If that URL is down or unreachable, the app shows the offline/error page (“Can’t connect”) until the service is back or the user retries.
-- **Admin in App Store build:** Admin and all `/admin/*` routes are intentionally hidden and redirected to `/dashboard` when `NEXT_PUBLIC_APP_STORE_BUILD=true`. Operator tools remain on the web-only deployment.
+- **Admin in App Store build:** Admin and all `/admin/*` routes are intentionally hidden and redirected to `/dashboard` when `NEXT_PUBLIC_APP_STORE_BUILD=true`. Operators use a dedicated hostname with `NEXT_PUBLIC_ADMIN_WEB_HOSTS` (see `docs/ADMIN_WEB_DEPLOYMENT.md`) or a second deployment with the flag off.
 - **External links:** Links to other origins (store, help, support) intentionally open in the in-app browser (Safari View Controller), not inside the main app WebView, so the tracker experience stays focused and store/shop flows use the system browser UI.
 
 ## Summary

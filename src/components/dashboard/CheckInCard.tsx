@@ -5,14 +5,17 @@ import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { submitCheckInAction } from "@/app/(dashboard)/dashboard/actions";
 import type { CheckIn } from "@/types";
+import { formatCheckInHeadingDate } from "@/lib/date-display";
 
 interface CheckInCardProps {
   todayCheckIn: CheckIn | null;
+  /** UTC calendar day used for the check-in row (`YYYY-MM-DD`, same as server `todayDateString()`). */
+  checkInDateYmd: string;
   /** When true, render without Card wrapper (e.g. inside TodayBlock hero). */
   embedded?: boolean;
 }
 
-export function CheckInCard({ todayCheckIn, embedded }: CheckInCardProps) {
+export function CheckInCard({ todayCheckIn, checkInDateYmd, embedded }: CheckInCardProps) {
   const router = useRouter();
   const [routineDone, setRoutineDone] = useState(todayCheckIn?.routine_done ?? false);
   const [workedOut, setWorkedOut] = useState(todayCheckIn?.worked_out ?? false);
@@ -21,11 +24,7 @@ export function CheckInCard({ todayCheckIn, embedded }: CheckInCardProps) {
   const [error, setError] = useState<string | null>(null);
 
   const hasCheckedIn = todayCheckIn != null;
-  const today = new Date().toLocaleDateString(undefined, {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-  });
+  const today = formatCheckInHeadingDate(checkInDateYmd);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
