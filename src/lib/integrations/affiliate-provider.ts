@@ -6,11 +6,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { AffiliateProfile, AffiliateStatsCache, Order } from "@/types";
-import {
-  getAffiliateProfile,
-  getAffiliateStats,
-  buildReferralLink as buildLink,
-} from "@/lib/affiliates";
+import { getAffiliateProfile, getAffiliateStats } from "@/lib/affiliates";
 import { formatOrderNumber } from "@/lib/orders";
 import {
   isSliceWPSyncEnabled,
@@ -20,12 +16,18 @@ import {
   fetchSliceWPReferredOrders,
   SLICEWP_STATS_PERIOD,
 } from "@/lib/integrations/slicewp";
+import {
+  runAffiliateExternalSync,
+  type AffiliateExternalSyncPresentation,
+} from "@/lib/integrations/affiliate-external-sync";
 
 export interface AffiliateProfileView {
   profile: AffiliateProfile | null;
   referralLink: string;
   couponCode: string | null;
   payoutStatus: string | null;
+  /** SliceWP + optional WooCommerce reconciliation (source-of-truth path). */
+  externalSync: AffiliateExternalSyncPresentation;
 }
 
 export interface AffiliateStatsView {
@@ -59,40 +61,34 @@ async function resolveSliceId(
   userId: string
 ): Promise<string | null> {
   if (!isSliceWPSyncEnabled()) return null;
+  const profile = await getAffiliateProfile(supabase, userId);
+  const stored = profile?.slicewp_affiliate_id?.trim();
+  if (stored) return stored;
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  const profile = await getAffiliateProfile(supabase, userId);
   return resolveSliceWPAffiliateId({
-    storedId: profile?.slicewp_affiliate_id,
+    storedId: null,
     userEmail: user?.email ?? null,
   });
 }
 
 export const affiliateProvider: IAffiliateProvider = {
   async getProfileView(supabase, userId, baseUrl) {
+    const externalSync = await runAffiliateExternalSync({
+      supabase,
+      userId,
+      baseUrl,
+      force: false,
+    });
     const profile = await getAffiliateProfile(supabase, userId);
-    let referralLink = buildLink(profile, baseUrl);
-    let couponCode = profile?.coupon_code ?? null;
-    let payoutStatus = profile?.payout_status ?? null;
-
-    if (isSliceWPSyncEnabled()) {
-      const sliceId = await resolveSliceId(supabase, userId);
-      if (sliceId) {
-        const patch = await fetchSliceWPAffiliatePatch(sliceId);
-        if (patch) {
-          if (patch.referralLink) referralLink = patch.referralLink;
-          if (patch.couponCode) couponCode = patch.couponCode;
-          if (patch.payoutStatus) payoutStatus = patch.payoutStatus;
-        }
-      }
-    }
 
     return {
       profile,
-      referralLink,
-      couponCode,
-      payoutStatus,
+      referralLink: externalSync.referralLink,
+      couponCode: externalSync.promoCodeDisplay,
+      payoutStatus: externalSync.payoutStatus,
+      externalSync,
     };
   },
 

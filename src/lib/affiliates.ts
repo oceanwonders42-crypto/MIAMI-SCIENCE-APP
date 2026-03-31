@@ -110,6 +110,9 @@ export type AffiliateProfileUpdate = Partial<
     | "payout_details"
     | "status"
     | "slicewp_affiliate_id"
+    | "affiliate_external_synced_at"
+    | "affiliate_external_sync_error"
+    | "woo_coupon_id"
   >
 >;
 

@@ -38,11 +38,7 @@ export async function ensureRoomMembership(
 ): Promise<{ error: Error | null }> {
   const { error } = await supabase.from("chat_room_members").upsert(
     { room_id: roomId, user_id: userId, role: "member" },
-    {
-      onConflict: "room_id,user_id",
-      // ON CONFLICT DO UPDATE requires an UPDATE RLS policy; DO NOTHING avoids that and is enough to ensure membership exists.
-      ignoreDuplicates: true,
-    }
+    { onConflict: "room_id,user_id" }
   );
   return { error: error ? new Error(error.message) : null };
 }

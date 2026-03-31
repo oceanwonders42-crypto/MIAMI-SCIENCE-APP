@@ -11,9 +11,11 @@ import { formatCommissionCents } from "@/lib/affiliates";
 import { AffiliateReferralHero } from "@/components/affiliate/AffiliateReferralHero";
 import { AffiliateFreeProductUnlock } from "@/components/affiliate/AffiliateFreeProductUnlock";
 import { AffiliatePayoutForm } from "@/components/affiliate/AffiliatePayoutForm";
+import { AffiliateSyncNowButton } from "@/components/affiliate/AffiliateSyncNowButton";
 import { cn } from "@/lib/utils";
 import type { ReferredOrderView } from "@/lib/integrations/affiliate-provider";
 import type { AffiliateConnectionBanner } from "@/lib/affiliate-dashboard";
+import type { AffiliateExternalSyncPresentation } from "@/lib/integrations/affiliate-external-sync";
 
 function Money({ cents, className }: { cents: number; className?: string }) {
   return (
@@ -48,26 +50,51 @@ function StatusBadge({ status }: { status: ReferredOrderView["displayStatus"] })
   );
 }
 
+function promoMismatchHint(m: AffiliateExternalSyncPresentation["mismatch"]): string | null {
+  switch (m) {
+    case "none":
+      return null;
+    case "woo_not_configured":
+      return "WooCommerce REST is not configured — promo code is shown from SliceWP only (not verified in the store).";
+    case "coupon_not_in_woocommerce":
+      return "SliceWP reports a code that was not found in WooCommerce. It is hidden until the store matches.";
+    case "email_restrictions":
+      return "This coupon uses Allowed Emails in WooCommerce that do not include the affiliate email used for the check.";
+    case "slice_missing_coupon":
+      return "SliceWP has no coupon linked to this affiliate. Configure Affiliate Coupons in WordPress.";
+    default:
+      return null;
+  }
+}
+
 function SliceWPStatusBanner({
   connection,
   lastSyncedAt,
+  promoSyncedAt,
   isAdmin,
 }: {
   connection: AffiliateConnectionBanner;
   lastSyncedAt: string | null;
+  promoSyncedAt: string | null;
   isAdmin: boolean;
 }) {
   if (connection.variant === "connected") {
     const rel = formatLastSyncedRelative(lastSyncedAt);
+    const promoRel = promoSyncedAt ? formatLastSyncedRelative(promoSyncedAt) : null;
     return (
       <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-emerald-500/45 bg-emerald-950/40 px-4 py-3.5 shadow-[0_0_36px_-10px_rgba(16,185,129,0.4)]">
         <span className="relative flex h-3 w-3 shrink-0">
           <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-35" />
           <span className="relative inline-flex h-3 w-3 rounded-full bg-emerald-400 shadow-[0_0_14px_rgba(52,211,153,0.95)]" />
         </span>
-        <p className="text-sm font-semibold text-emerald-100">
-          SliceWP connected — last synced {rel}
-        </p>
+        <div className="min-w-0 space-y-0.5">
+          <p className="text-sm font-semibold text-emerald-100">
+            SliceWP connected — metrics last synced {rel}
+          </p>
+          {promoRel ? (
+            <p className="text-xs text-emerald-200/80">Promo / coupon reconciliation: {promoRel}</p>
+          ) : null}
+        </div>
       </div>
     );
   }
@@ -116,15 +143,48 @@ export default async function AffiliatePage() {
 
   const profile = profileView.profile;
   const hasProfile = profile != null;
+  const es = profileView.externalSync;
+  const mismatchText = promoMismatchHint(es.mismatch);
 
-  const referralCodeDisplay =
-    (profileView.couponCode?.trim() || profile?.referral_code?.trim() || "") || null;
+  const referralCodeDisplay = (profileView.couponCode?.trim() || "") || null;
+  const missingSliceCoupon = es.mismatch === "slice_missing_coupon";
 
   return (
     <>
       <Header title="Affiliate" subtitle="Commissions, referrals & payouts" />
       <div className="px-4 md:px-6 space-y-8 pb-10">
-        <SliceWPStatusBanner connection={connection} lastSyncedAt={lastSyncedAt} isAdmin={isAdmin} />
+        <SliceWPStatusBanner
+          connection={connection}
+          lastSyncedAt={lastSyncedAt}
+          promoSyncedAt={es.lastExternalSyncedAt}
+          isAdmin={isAdmin}
+        />
+
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between rounded-2xl border border-zinc-800 bg-zinc-950/50 px-4 py-3">
+          <div className="min-w-0 space-y-1 text-sm">
+            <p className="text-zinc-400">
+              Affiliate status:{" "}
+              <span className="font-semibold text-zinc-200">{es.affiliateStatus ?? "—"}</span>
+            </p>
+            {es.syncError ? (
+              <p className="text-xs text-amber-200/90 leading-snug" data-testid="affiliate-sync-error">
+                {es.syncError}
+              </p>
+            ) : (
+              <p className="text-xs text-zinc-500">
+                Data is loaded from SliceWP and verified against WooCommerce when configured.
+              </p>
+            )}
+            {es.emailMismatchWithSlice ? (
+              <p className="text-xs text-amber-300/95">
+                Your app login email does not match the email on your SliceWP affiliate profile. Ask an admin
+                to align accounts.
+              </p>
+            ) : null}
+            {mismatchText ? <p className="text-xs text-amber-200/85">{mismatchText}</p> : null}
+          </div>
+          <AffiliateSyncNowButton className="shrink-0" />
+        </div>
 
         <section className="space-y-3">
           <h2 className="text-[11px] font-bold uppercase tracking-[0.2em] text-amber-500/90">
@@ -133,6 +193,12 @@ export default async function AffiliatePage() {
           <AffiliateReferralHero
             referralCode={referralCodeDisplay}
             affiliateLink={profileView.referralLink || null}
+            emptyStateTitle={missingSliceCoupon ? "No promo code linked" : undefined}
+            emptyStateDescription={
+              missingSliceCoupon
+                ? "SliceWP does not have a coupon on this affiliate yet. After your admin links a WooCommerce coupon (Affiliate Coupons), use “Sync promo & affiliate data” above."
+                : undefined
+            }
           />
         </section>
 

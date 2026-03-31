@@ -1,16 +1,43 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { createServerClient } from "@/lib/supabase/server";
 import { updateAffiliatePayoutByUserId } from "@/lib/affiliates";
-import { revalidatePath } from "next/cache";
-import { ROUTES } from "@/lib/constants";
+import { runAffiliateExternalSync } from "@/lib/integrations/affiliate-external-sync";
+import { ROUTES, SHOP_REFILL_URL } from "@/lib/constants";
 
 export type PayoutMethodId = "cash_app" | "venmo" | "paypal" | "zelle" | "bank";
 
-const METHODS: PayoutMethodId[] = ["cash_app", "venmo", "paypal", "zelle", "bank"];
+const PAYOUT_METHODS: PayoutMethodId[] = ["cash_app", "venmo", "paypal", "zelle", "bank"];
 
 function sanitize(s: unknown): string {
   return typeof s === "string" ? s.trim() : "";
+}
+
+export type SyncAffiliateResult = { ok: true } | { ok: false; error: string };
+
+export async function syncAffiliateExternalNowAction(): Promise<SyncAffiliateResult> {
+  const supabase = await createServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "Not signed in" };
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? SHOP_REFILL_URL;
+  try {
+    await runAffiliateExternalSync({
+      supabase,
+      userId: user.id,
+      baseUrl,
+      force: true,
+    });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error("[syncAffiliateExternalNowAction]", msg);
+    return { ok: false, error: msg };
+  }
+  revalidatePath(ROUTES.affiliate);
+  revalidatePath(ROUTES.account);
+  return { ok: true };
 }
 
 export async function saveAffiliatePayoutAction(
@@ -24,7 +51,7 @@ export async function saveAffiliatePayoutAction(
   if (!user) return { ok: false, message: "Not signed in." };
 
   const raw = sanitize(formData.get("payout_method"));
-  if (!METHODS.includes(raw as PayoutMethodId)) {
+  if (!PAYOUT_METHODS.includes(raw as PayoutMethodId)) {
     return { ok: false, message: "Select a valid payout method." };
   }
   const payout_method = raw as PayoutMethodId;

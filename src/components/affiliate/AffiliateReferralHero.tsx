@@ -9,10 +9,15 @@ import { cn } from "@/lib/utils";
 export function AffiliateReferralHero({
   referralCode,
   affiliateLink,
+  emptyStateTitle,
+  emptyStateDescription,
   className,
 }: {
   referralCode: string | null | undefined;
   affiliateLink: string | null | undefined;
+  /** Override default empty copy (e.g. SliceWP has no linked coupon). */
+  emptyStateTitle?: string;
+  emptyStateDescription?: string;
   className?: string;
 }) {
   const code = (referralCode ?? "").trim();
@@ -27,10 +32,12 @@ export function AffiliateReferralHero({
           className
         )}
       >
-        <p className="text-sm font-semibold text-amber-200/90">Referral code & link</p>
+        <p className="text-sm font-semibold text-amber-200/90">
+          {emptyStateTitle ?? "Referral code & link"}
+        </p>
         <p className="mt-2 text-sm text-zinc-500 max-w-md mx-auto">
-          Your referral code and link will appear here once your affiliate profile is configured. Contact
-          Miami Science if you need help.
+          {emptyStateDescription ??
+            "Your referral code and link will appear here once your affiliate profile is configured. Contact Miami Science if you need help."}
         </p>
       </div>
     );

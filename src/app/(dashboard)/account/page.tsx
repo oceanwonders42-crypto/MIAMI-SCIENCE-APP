@@ -80,6 +80,17 @@ export default async function AccountPage() {
                         Referral: <code className="text-xs">{profileView.referralLink}</code>
                       </p>
                     )}
+                    {profileView?.couponCode ? (
+                      <p className="text-sm text-zinc-400 truncate" data-testid="account-affiliate-promo">
+                        Promo code:{" "}
+                        <code className="text-xs text-amber-200/90">{profileView.couponCode}</code>
+                      </p>
+                    ) : null}
+                    {profileView?.externalSync?.syncError ? (
+                      <p className="text-xs text-amber-500/90 leading-snug">
+                        Sync note: {profileView.externalSync.syncError}
+                      </p>
+                    ) : null}
                   </>
                 )}
                 <Link

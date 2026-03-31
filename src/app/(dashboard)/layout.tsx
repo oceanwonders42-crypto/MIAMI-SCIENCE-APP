@@ -10,6 +10,8 @@ import {
 import { getProfile, isProfileComplete } from "@/lib/profile";
 import { getCustomerMappingByUserId } from "@/lib/customer-mapping";
 import { tryAutoLinkCustomer } from "@/lib/integrations/auto-customer-link";
+import { getAffiliateProfile } from "@/lib/affiliates";
+import { persistSliceAffiliateIdIfUniqueEmailMatch } from "@/lib/integrations/affiliate-external-sync";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { AppNav } from "@/components/layout/AppNav";
 import { ROUTES } from "@/lib/constants";
@@ -47,6 +49,15 @@ export default async function DashboardLayout({
       await tryAutoLinkCustomer(serviceClient, user.id, user.email);
     } catch {
       // Service role env missing or auto-link failed — do not crash the layout
+    }
+  }
+
+  if (isAffiliateOrAdmin(role) && user.email) {
+    try {
+      const aff = await getAffiliateProfile(supabase, user.id);
+      if (aff) await persistSliceAffiliateIdIfUniqueEmailMatch(supabase, user.email, aff);
+    } catch {
+      // SliceWP or DB errors must not break dashboard shell
     }
   }
 

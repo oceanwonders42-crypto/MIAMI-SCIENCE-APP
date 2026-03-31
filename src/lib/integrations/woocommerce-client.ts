@@ -280,6 +280,56 @@ export interface NormalizedWooOrder {
   line_items: Array<{ name: string; quantity: number; product_id: string }>;
 }
 
+/** WooCommerce coupon (minimal fields for affiliate promo verification). */
+export interface RawWooCoupon {
+  id: number;
+  code?: string;
+  email_restrictions?: string[];
+  discount_type?: string;
+  amount?: string;
+  [key: string]: unknown;
+}
+
+/**
+ * Search coupons by code string (WooCommerce `search` may return multiple; filter with pickCouponMatchingCode).
+ */
+export async function fetchCouponsByCodeSearch(
+  config: WooCommerceConfig,
+  code: string
+): Promise<ApiResult<RawWooCoupon[]>> {
+  const trimmed = code.trim();
+  if (!trimmed) return { ok: false, error: "Coupon code required" };
+  return request<RawWooCoupon[]>(config, "GET", "/coupons", { search: trimmed });
+}
+
+export function pickCouponMatchingCode(
+  rows: RawWooCoupon[],
+  wanted: string
+): RawWooCoupon | null {
+  const w = wanted.trim().toLowerCase();
+  if (!w) return null;
+  for (const c of rows) {
+    const ccode = typeof c.code === "string" ? c.code.trim().toLowerCase() : "";
+    if (ccode === w) return c;
+  }
+  return null;
+}
+
+/**
+ * Allowed emails on coupon: empty → any billing email. Otherwise affiliate email must be listed.
+ */
+export function couponEmailRestrictionsAllow(
+  restrictions: string[] | null | undefined,
+  affiliateEmail: string | null | undefined
+): { ok: boolean; reason: "no_restrictions" | "allowed" | "missing_affiliate_email" | "blocked" } {
+  const list = (restrictions ?? []).map((e) => e.trim().toLowerCase()).filter(Boolean);
+  if (list.length === 0) return { ok: true, reason: "no_restrictions" };
+  const em = (affiliateEmail ?? "").trim().toLowerCase();
+  if (!em) return { ok: false, reason: "missing_affiliate_email" };
+  if (list.includes(em)) return { ok: true, reason: "allowed" };
+  return { ok: false, reason: "blocked" };
+}
+
 export function normalizeWooOrder(raw: RawWooOrder, baseUrl: string): NormalizedWooOrder {
   const total = raw.total != null ? parseFloat(String(raw.total).replace(/,/g, "")) : NaN;
   const total_cents = !Number.isNaN(total) ? Math.round(total * 100) : null;
