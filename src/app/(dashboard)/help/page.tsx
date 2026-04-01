@@ -58,7 +58,7 @@ export default function HelpPage() {
               <ul className="list-disc pl-5 space-y-2">
                 <li>
                   <a
-                    href="https://mia-science.com/privacy-policy"
+                    href="https://mia-science.com/privacy-policy/"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-primary-400 hover:underline"
@@ -68,7 +68,7 @@ export default function HelpPage() {
                 </li>
                 <li>
                   <a
-                    href="https://mia-science.com/terms-and-conditions"
+                    href="https://mia-science.com/terms-and-conditions/"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-primary-400 hover:underline"

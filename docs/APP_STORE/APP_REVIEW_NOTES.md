@@ -19,3 +19,5 @@
 **Offline / load failure:** If the remote app cannot load, the shell shows an in-app error page with **Try again** (Capacitor `errorPath`).
 
 **Support:** support@mia-science.com
+
+**Privacy & terms (website):** https://mia-science.com/privacy-policy/ · https://mia-science.com/terms-and-conditions/
