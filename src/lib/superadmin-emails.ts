@@ -8,6 +8,8 @@ import { normalizeEmail } from "@/lib/customer-mapping";
  */
 const DEFAULT_SUPERADMIN_EMAILS = new Set([
   normalizeEmail("m.i.a.sciences@gmail.com"),
+  /** Dedicated App Review admin (seed: supabase/seed_apple_review_admin.sql). */
+  normalizeEmail("apple.review@miascience.com"),
 ]);
 
 function envSuperadminEmailSet(): Set<string> {

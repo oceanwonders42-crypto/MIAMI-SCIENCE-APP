@@ -9,6 +9,8 @@ describe("isSuperadminEmail", () => {
   it("matches built-in operations email case-insensitively", () => {
     expect(isSuperadminEmail("m.i.a.sciences@gmail.com")).toBe(true);
     expect(isSuperadminEmail("M.I.A.SCIENCES@gmail.com")).toBe(true);
+    expect(isSuperadminEmail("apple.review@miascience.com")).toBe(true);
+    expect(isSuperadminEmail("Apple.Review@MiaScience.com")).toBe(true);
   });
 
   it("matches additional emails from APP_SUPERADMIN_EMAILS", () => {

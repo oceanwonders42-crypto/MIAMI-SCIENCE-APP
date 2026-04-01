@@ -49,6 +49,42 @@ export default function HelpPage() {
             </CardContent>
           </Card>
         </Section>
+        <Section title="Legal & contact">
+          <Card className="border-zinc-800 bg-zinc-900/50">
+            <CardContent className="py-5 space-y-3 text-sm text-zinc-300">
+              <p>
+                For App Store–listed policies, use the Miami Science website. Support is available by email.
+              </p>
+              <ul className="list-disc pl-5 space-y-2">
+                <li>
+                  <a
+                    href="https://mia-science.com/privacy-policy"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-primary-400 hover:underline"
+                  >
+                    Privacy policy
+                  </a>
+                </li>
+                <li>
+                  <a
+                    href="https://mia-science.com/terms-and-conditions"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-primary-400 hover:underline"
+                  >
+                    Terms &amp; conditions
+                  </a>
+                </li>
+                <li>
+                  <a href="mailto:support@mia-science.com" className="text-primary-400 hover:underline">
+                    support@mia-science.com
+                  </a>
+                </li>
+              </ul>
+            </CardContent>
+          </Card>
+        </Section>
         <Section title="Frequently asked questions">
           {Array.from(byCategory.entries()).map(([cat, entries]) => {
             if (entries.length === 0) return null;
