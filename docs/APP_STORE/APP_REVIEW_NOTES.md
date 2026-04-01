@@ -10,7 +10,7 @@
 - **Email:** `apple.review@miascience.com`
 - **Password:** `MiamiSciAppleReview2026!`
 
-**Important:** This user must exist in **production** Supabase. Run `supabase/seed_apple_review_admin.sql` once in the Supabase SQL Editor for the live project before review.
+**Important:** The review account must exist in **production** Supabase. If sign-in fails, run `node scripts/seed-apple-review-admin-remote.mjs` from the app repo (uses `.env.local` service role), **or** paste `supabase/seed_apple_review_admin.sql` into **Supabase Dashboard → SQL Editor → Run** for the live project.
 
 **After login:** You land on the home dashboard. Open **Account** to confirm role **admin**. **Admin** appears in the main navigation; open **Admin** for internal tools (integrations, affiliates, etc.). **Help** lists privacy, terms, and **support@mia-science.com**.
 
