@@ -1,47 +1,9 @@
 import { type NextRequest } from "next/server";
 import { updateSession } from "@/lib/supabase/middleware";
 
-const PROTECTED_PREFIXES = [
-  "/dashboard",
-  "/onboarding",
-  "/account",
-  "/training",
-  "/progress",
-  "/calories",
-  "/stack",
-  "/orders",
-  "/rewards",
-  "/community",
-  "/catalog",
-  "/cart",
-  "/checkout",
-  "/help",
-];
-const AFFILIATE_ONLY = ["/affiliate"];
-const ADMIN_ONLY = ["/admin"];
-
 export async function middleware(request: NextRequest) {
-  const { pathname } = request.nextUrl;
-
-  const supabaseResponse = await updateSession(request);
-
-  // Role check is done in layout/server for protected routes (we don't have role in middleware without a round-trip).
-  // Here we only ensure auth for protected paths.
-  const isProtected = PROTECTED_PREFIXES.some((p) => pathname.startsWith(p));
-  const isAffiliateRoute = AFFILIATE_ONLY.some((p) => pathname.startsWith(p));
-  const isAdminRoute = ADMIN_ONLY.some((p) => pathname.startsWith(p));
-
-  if (isProtected || isAffiliateRoute || isAdminRoute) {
-    const authCookie = request.cookies.get("sb-auth-token");
-    const hasSession =
-      request.cookies.getAll().some((c) => c.name.startsWith("sb-") && c.value?.length) ||
-      authCookie?.value;
-    // Supabase stores session in multiple cookies; redirect to login if no auth detected.
-    // More robust: use getSession in a route handler or layout and redirect there.
-    // For MVP we rely on server layout to redirect unauthenticated users.
-  }
-
-  return supabaseResponse;
+  // Auth and role checks live in route layouts / server components (dashboard, affiliate, admin).
+  return updateSession(request);
 }
 
 export const config = {
